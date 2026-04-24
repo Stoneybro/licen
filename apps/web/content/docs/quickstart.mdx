@@ -1,0 +1,55 @@
+---
+title: Quickstart
+---
+
+# Quickstart
+
+Get a working LICEN demo running end-to-end for hackathon scope.
+
+## Prerequisites
+
+- 0G testnet wallet with faucet funds
+- Node.js and `pnpm`
+- Access to 0G Storage, 0G Chain RPC, and 0G Compute tooling
+
+## 1. Deploy DataPolicy contract
+
+- Configure your deployment environment for 0G testnet.
+- Deploy a `DataPolicy` contract storing royalty and policy parameters.
+- Save the deployed contract address.
+
+## 2. Encrypt and upload dataset
+
+- Encrypt a small dataset client-side (AES-256 or equivalent).
+- Upload the encrypted file to 0G Storage.
+- Compute and store the dataset Merkle root.
+
+## 3. Bind dataset to policy
+
+- Register dataset root and owner in the `DataPolicy` contract.
+- Set initial licensing terms (allowed domains, royalty, expiry).
+
+## 4. Implement access request flow
+
+- Researcher submits request with required payment.
+- Contract validates policy and emits access event.
+- Wrapper listens to event and starts job orchestration.
+
+## 5. Run fine-tuning through wrapper
+
+- Wrapper retrieves scoped key material after policy pass.
+- Dataset is decrypted in controlled runtime only.
+- Fine-tuning executes on 0G Compute.
+
+## 6. Settle and verify
+
+- On completion, wrapper calls contract completion function.
+- Contract settles royalty and closes job state.
+- Verify receipts and payouts on-chain.
+
+## Suggested demo output
+
+- Successful access request transaction
+- Visible job lifecycle state transitions
+- Final royalty settlement receipt
+- UI page showing dataset, requester, job, and payout history

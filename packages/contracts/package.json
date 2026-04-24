@@ -1,0 +1,9 @@
+{
+  "name": "@licen/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "forge build",
+    "test": "forge test"
+  }
+}
