@@ -130,7 +130,7 @@ Contains:
 - compliance/region notes,
 - attribution requirements,
 - derivative/commercial rights,
-- policy version and owner signature.
+- policy version (owner consent is implicitly verified by the on-chain registration transaction).
 
 ---
 
@@ -184,18 +184,17 @@ This is fairer and more defensible than charging only by requested value.
 
 ## 9) End-to-End Flow
 
-## 9.1 Phase 1: Encrypt + Upload
+## 9.1 Phase 1: Configuration & Encryption (Client-Side)
 
-1. Publisher encrypts dataset client-side.
-2. Upload encrypted blob to 0G Storage.
-3. Generate `datasetRoot` (Merkle root).
-4. Store policy manifest in 0G Storage; anchor `manifestHash` on-chain.
+1. Publisher configures legal terms and dataset metadata via a standard web form (which compiles into a JSON manifest behind the scenes).
+2. Dataset is encrypted client-side.
+3. Generate `datasetRoot` (hash of ciphertext) and `manifestHash`.
 
-## 9.2 Phase 2: Policy Deployment
+## 9.2 Phase 2: Batched Upload & On-Chain Registration
 
-1. Deploy `DataPolicy` contract on 0G Chain.
-2. Register enforcement fields for dataset.
-3. Activate policy.
+1. Encrypted blob is uploaded to 0G Storage.
+2. Policy manifest JSON is uploaded to 0G Storage.
+3. Publisher signs a single blockchain transaction to register the `datasetRoot` and `manifestHash` on the `DataPolicy` contract. This transaction acts as their cryptographic consent to the manifest terms.
 
 ## 9.3 Phase 3: Licensed Training via Wrapper + 0G Compute
 

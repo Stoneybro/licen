@@ -24,6 +24,7 @@ export type PublishSubmitRequest = {
   datasetRoot: string;
   manifestHash: string;
   manifestUri: string;
+  txHash: string;
   ownerAddress: string;
   ownerSignature?: string;
   policy: PublishPolicyConfig;
@@ -40,13 +41,30 @@ export type PublishManifestUploadRequest = {
   manifestJson: string;
   manifestHash: string;
   ownerAddress: string;
-  ownerSignature: string;
+  ownerSignature?: string;
 };
 
 export type PublishManifestUploadResponse = {
   manifestUri: string;
   manifestHash: string;
   storedAt: string;
+};
+
+export type PublicPolicyManifest = {
+  manifestType: "licen.public-manifest";
+  version: string;
+  title: string;
+  description: string;
+  datasetRoot: string;
+  ownerAddress: string;
+  createdAt: string;
+  legalText?: string;
+  usageTaxonomy?: string;
+  taskConstraints?: string;
+  complianceNotes?: string;
+  attribution?: string;
+  derivativeRights?: string;
+  ownerSignature?: string;
 };
 
 export type PublishStatusResponse = {
@@ -70,6 +88,67 @@ export type ValidationResult<T> =
   | { ok: true; data: T }
   | { ok: false; errors: string[] };
 
+export function validatePublicPolicyManifest(input: unknown): ValidationResult<PublicPolicyManifest> {
+  if (!isRecord(input)) {
+    return { ok: false, errors: ["manifestJson must parse to an object"] };
+  }
+
+  const errors: string[] = [];
+
+  if (input.manifestType !== "licen.public-manifest") {
+    errors.push("manifestType must be licen.public-manifest");
+  }
+
+  if (!isNonEmptyString(input.version)) {
+    errors.push("version is required");
+  }
+
+  if (!isNonEmptyString(input.title)) {
+    errors.push("title is required");
+  }
+
+  if (!isNonEmptyString(input.description)) {
+    errors.push("description is required");
+  }
+
+  if (!isHexString(input.datasetRoot)) {
+    errors.push("datasetRoot must be a hex string");
+  }
+
+  if (!isHexString(input.ownerAddress)) {
+    errors.push("ownerAddress must be a hex string");
+  }
+
+  if (!isIsoDateString(input.createdAt)) {
+    errors.push("createdAt must be a valid ISO datetime string");
+  }
+
+  const optionalStringFields: Array<keyof Pick<
+    PublicPolicyManifest,
+    "legalText" | "usageTaxonomy" | "taskConstraints" | "complianceNotes" | "attribution" | "derivativeRights"
+  >> = ["legalText", "usageTaxonomy", "taskConstraints", "complianceNotes", "attribution", "derivativeRights"];
+
+  for (const field of optionalStringFields) {
+    const value = input[field];
+    if (value !== undefined && !isNonEmptyString(value)) {
+      errors.push(`${field} must be a non-empty string when provided`);
+    }
+  }
+
+  if (input.ownerSignature !== undefined && !isHexString(input.ownerSignature)) {
+    errors.push("ownerSignature must be a hex string when provided");
+  }
+
+  if (errors.length > 0) {
+    return { ok: false, errors };
+  }
+
+  return {
+    ok: true,
+    data: input as PublicPolicyManifest,
+  };
+}
+
 export function validatePublishManifestUploadRequest(input: unknown): ValidationResult<PublishManifestUploadRequest> {
   if (!isRecord(input)) {
     return { ok: false, errors: ["Payload must be an object"] };
@@ -80,8 +159,8 @@ export function validatePublishManifestUploadRequest(input: unknown): Validation
   if (!isNonEmptyString(input.manifestJson)) errors.push("manifestJson is required");
   if (!isHexString(input.manifestHash)) errors.push("manifestHash must be a hex string");
   if (!isHexString(input.ownerAddress)) errors.push("ownerAddress must be a hex string");
-  if (!isHexString(input.ownerSignature)) {
-    errors.push("ownerSignature must be a hex string");
+  if (input.ownerSignature !== undefined && !isHexString(input.ownerSignature)) {
+    errors.push("ownerSignature must be a hex string when provided");
   }
 
   if (errors.length > 0) {
@@ -100,6 +179,15 @@ function isRecord(input: unknown): input is Record<string, unknown> {
 
 function isNonEmptyString(input: unknown): input is string {
   return typeof input === "string" && input.trim().length > 0;
+}
+
+function isIsoDateString(input: unknown): input is string {
+  if (typeof input !== "string") {
+    return false;
+  }
+
+  const timestamp = Date.parse(input);
+  return Number.isFinite(timestamp);
 }
 
 function isPositiveInt(input: unknown): input is number {
@@ -128,6 +216,7 @@ export function validatePublishSubmitRequest(input: unknown): ValidationResult<P
   if (!isHexString(input.datasetRoot)) errors.push("datasetRoot must be a hex string");
   if (!isHexString(input.manifestHash)) errors.push("manifestHash must be a hex string");
   if (!isNonEmptyString(input.manifestUri)) errors.push("manifestUri is required");
+  if (!isHexString(input.txHash)) errors.push("txHash must be a hex string");
   if (!isHexString(input.ownerAddress)) errors.push("ownerAddress must be a hex string");
   if (input.ownerSignature !== undefined && !isHexString(input.ownerSignature)) {
     errors.push("ownerSignature must be a hex string when provided");

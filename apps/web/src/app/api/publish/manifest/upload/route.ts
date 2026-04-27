@@ -2,10 +2,10 @@ import type { NextRequest } from "next/server";
 import {
   type ApiErrorResponse,
   type PublishManifestUploadResponse,
+  validatePublicPolicyManifest,
   validatePublishManifestUploadRequest,
 } from "@/lib/publish/contracts";
-import { saveManifestUpload } from "@/lib/publish/store";
-import { recoverMessageAddress } from "viem";
+import { uploadManifestToOgStorage } from "@/lib/publish/storage";
 
 async function sha256Hex(input: string): Promise<`0x${string}`> {
   const bytes = new TextEncoder().encode(input);
@@ -56,26 +56,20 @@ export async function POST(request: NextRequest) {
       return Response.json(errorBody, { status: 400 });
     }
 
-    const manifestOwnerAddress =
-      typeof parsedManifest === "object" &&
-      parsedManifest !== null &&
-      "ownerAddress" in parsedManifest &&
-      typeof parsedManifest.ownerAddress === "string"
-        ? parsedManifest.ownerAddress
-        : null;
-
-    if (!manifestOwnerAddress) {
+    const manifestValidated = validatePublicPolicyManifest(parsedManifest);
+    if (!manifestValidated.ok) {
       const errorBody: ApiErrorResponse = {
         error: {
           code: "INVALID_PAYLOAD",
-          message: "manifestJson.ownerAddress is required",
+          message: "manifestJson failed schema validation",
+          details: manifestValidated.errors,
         },
       };
 
       return Response.json(errorBody, { status: 400 });
     }
 
-    if (manifestOwnerAddress.toLowerCase() !== validated.data.ownerAddress.toLowerCase()) {
+    if (manifestValidated.data.ownerAddress.toLowerCase() !== validated.data.ownerAddress.toLowerCase()) {
       const errorBody: ApiErrorResponse = {
         error: {
           code: "INVALID_PAYLOAD",
@@ -86,35 +80,7 @@ export async function POST(request: NextRequest) {
       return Response.json(errorBody, { status: 400 });
     }
 
-    let recoveredAddress: `0x${string}`;
-    try {
-      recoveredAddress = await recoverMessageAddress({
-        message: validated.data.manifestJson,
-        signature: validated.data.ownerSignature as `0x${string}`,
-      });
-    } catch {
-      const errorBody: ApiErrorResponse = {
-        error: {
-          code: "INVALID_PAYLOAD",
-          message: "ownerSignature format is invalid",
-        },
-      };
-
-      return Response.json(errorBody, { status: 400 });
-    }
-
-    if (recoveredAddress.toLowerCase() !== validated.data.ownerAddress.toLowerCase()) {
-      const errorBody: ApiErrorResponse = {
-        error: {
-          code: "INVALID_PAYLOAD",
-          message: "ownerSignature is invalid for provided ownerAddress",
-        },
-      };
-
-      return Response.json(errorBody, { status: 400 });
-    }
-
-    const stored = saveManifestUpload(validated.data);
+    const stored = await uploadManifestToOgStorage(validated.data);
 
     const responseBody: PublishManifestUploadResponse = {
       manifestUri: stored.manifestUri,

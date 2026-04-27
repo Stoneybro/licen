@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
-import type { ApiErrorResponse } from "@/lib/publish/contracts";
-import { getPublishRequestStatus } from "@/lib/publish/store";
+import type { ApiErrorResponse, PublishStatusResponse } from "@/lib/publish/contracts";
+import { getOgPublicClient } from "@/lib/publish/onchain";
+import { getPublishRequestStatus, updatePublishRequestStatus } from "@/lib/publish/store";
 
 export async function GET(
   _request: NextRequest,
@@ -20,5 +21,33 @@ export async function GET(
     return Response.json(errorBody, { status: 404 });
   }
 
-  return Response.json(status, { status: 200 });
+  if (!status.txHash) {
+    return Response.json(status, { status: 200 });
+  }
+
+  let nextStatus: PublishStatusResponse = {
+    ...status,
+    status: "validating",
+    lastUpdatedAt: new Date().toISOString(),
+  };
+
+  try {
+    const client = getOgPublicClient();
+    const receipt = await client.getTransactionReceipt({ hash: status.txHash as `0x${string}` });
+
+    nextStatus = {
+      ...nextStatus,
+      status: receipt.status === "success" ? "accepted" : "failed",
+      lastUpdatedAt: new Date().toISOString(),
+      errorMessage: receipt.status === "success" ? undefined : "On-chain transaction reverted",
+    };
+  } catch {
+    nextStatus = {
+      ...nextStatus,
+      status: "validating",
+    };
+  }
+
+  updatePublishRequestStatus(requestId, nextStatus);
+  return Response.json(nextStatus, { status: 200 });
 }
