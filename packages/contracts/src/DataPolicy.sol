@@ -8,18 +8,17 @@ contract DataPolicy {
     using SafeERC20 for IERC20;
 
     IERC20 public immutable paymentToken;
+    address public immutable backendWallet;
 
     struct Policy {
         bytes32 datasetRoot;
         address owner;
         bytes32 manifestHash;
         uint256 royaltyPerEpoch;
-        uint256 minEscrow;
         uint32 maxEpochsPerRun;
         uint32 maxRunsPerRequester;
         uint64 accessTtlSeconds;
         uint64 policyExpiry;
-        bool requireTEE;
         bool requireResultAttestation;
         bool active;
         bool openRequesters; // If true, anyone can request. If false, must be in allowedRequesters
@@ -30,7 +29,6 @@ contract DataPolicy {
     // Arrays/mappings for policy lists
     mapping(bytes32 => mapping(bytes32 => bool)) public allowedPurposeIds;
     mapping(bytes32 => mapping(address => bool)) public allowedRequesters;
-    mapping(bytes32 => mapping(address => bool)) public approvedProviders;
 
     // Job state tracking
     enum JobState { None, Requested, Granted, Running, Completed, Failed, TimedOut, Refunded }
@@ -65,9 +63,11 @@ contract DataPolicy {
     event RoyaltySettled(bytes32 indexed jobId, uint256 amount);
     event RefundIssued(bytes32 indexed jobId, uint256 amount);
 
-    constructor(address _paymentToken) {
+    constructor(address _paymentToken, address _backendWallet) {
         require(_paymentToken != address(0), "Invalid token address");
+        require(_backendWallet != address(0), "Invalid backend wallet address");
         paymentToken = IERC20(_paymentToken);
+        backendWallet = _backendWallet;
     }
 
     modifier onlyDatasetOwner(bytes32 datasetRoot) {
@@ -81,21 +81,23 @@ contract DataPolicy {
         _;
     }
 
+    modifier onlyBackend() {
+        require(msg.sender == backendWallet, "Not backend wallet");
+        _;
+    }
+
     function registerDataset(
         bytes32 datasetRoot,
         bytes32 manifestHash,
         uint256 royaltyPerEpoch,
-        uint256 minEscrow,
         uint32 maxEpochsPerRun,
         uint32 maxRunsPerRequester,
         uint64 accessTtlSeconds,
         uint64 policyExpiry,
-        bool requireTEE,
         bool requireResultAttestation,
         bool openRequesters,
         bytes32[] calldata _allowedPurposeIds,
-        address[] calldata _allowedRequesters,
-        address[] calldata _approvedProviders
+        address[] calldata _allowedRequesters
     ) external {
         require(policies[datasetRoot].owner == address(0), "Dataset already registered");
 
@@ -104,12 +106,10 @@ contract DataPolicy {
             owner: msg.sender,
             manifestHash: manifestHash,
             royaltyPerEpoch: royaltyPerEpoch,
-            minEscrow: minEscrow,
             maxEpochsPerRun: maxEpochsPerRun,
             maxRunsPerRequester: maxRunsPerRequester,
             accessTtlSeconds: accessTtlSeconds,
             policyExpiry: policyExpiry,
-            requireTEE: requireTEE,
             requireResultAttestation: requireResultAttestation,
             active: true,
             openRequesters: openRequesters
@@ -120,9 +120,6 @@ contract DataPolicy {
         }
         for (uint i = 0; i < _allowedRequesters.length; i++) {
             allowedRequesters[datasetRoot][_allowedRequesters[i]] = true;
-        }
-        for (uint i = 0; i < _approvedProviders.length; i++) {
-            approvedProviders[datasetRoot][_approvedProviders[i]] = true;
         }
 
         emit DatasetRegistered(datasetRoot, msg.sender, manifestHash);
@@ -144,7 +141,6 @@ contract DataPolicy {
     function requestAccess(
         bytes32 datasetRoot,
         bytes32 purposeId,
-        address provider,
         uint32 requestedEpochs,
         bytes32 termsHash
     ) external returns (bytes32 jobId) {
@@ -154,16 +150,12 @@ contract DataPolicy {
         require(termsHash == policy.manifestHash, "Terms hash mismatch");
         require(requestedEpochs <= policy.maxEpochsPerRun, "Exceeds max epochs per run");
         require(allowedPurposeIds[datasetRoot][purposeId], "Purpose not allowed");
-        require(approvedProviders[datasetRoot][provider], "Provider not approved");
         
         if (!policy.openRequesters) {
             require(allowedRequesters[datasetRoot][msg.sender], "Requester not allowed");
         }
 
-        uint256 expectedEscrow = policy.royaltyPerEpoch * requestedEpochs;
-        if (expectedEscrow < policy.minEscrow) {
-            expectedEscrow = policy.minEscrow;
-        }
+        uint256 requiredEscrow = policy.royaltyPerEpoch * requestedEpochs;
 
         jobCounter++;
         jobId = keccak256(abi.encodePacked(datasetRoot, msg.sender, jobCounter, block.timestamp));
@@ -171,28 +163,25 @@ contract DataPolicy {
         jobs[jobId] = Job({
             datasetRoot: datasetRoot,
             requester: msg.sender,
-            provider: provider,
+            provider: backendWallet,
             purposeId: purposeId,
             requestedEpochs: requestedEpochs,
-            escrowAmount: expectedEscrow,
+            escrowAmount: requiredEscrow,
             requestTime: uint64(block.timestamp),
             state: JobState.Granted,
             termsHash: termsHash
         });
 
         // Lock escrow
-        paymentToken.safeTransferFrom(msg.sender, address(this), expectedEscrow);
+        paymentToken.safeTransferFrom(msg.sender, address(this), requiredEscrow);
 
         emit AccessRequested(jobId, datasetRoot, msg.sender, requestedEpochs);
         emit AccessGranted(jobId);
     }
 
-    // In a production system, these transitions would be called by the trusted wrapper/orchestrator
-    // For MVP, dataset owner or wrapper can update state
-    function startJob(bytes32 jobId) external {
+    function startJob(bytes32 jobId) external onlyBackend {
         Job storage job = jobs[jobId];
         require(job.state == JobState.Granted, "Invalid state transition");
-        require(msg.sender == job.provider || msg.sender == policies[job.datasetRoot].owner, "Unauthorized");
 
         job.state = JobState.Running;
         emit JobStarted(jobId);
@@ -203,22 +192,16 @@ contract DataPolicy {
         uint32 actualEpochs,
         bytes32 resultHash,
         bytes32 attestationRef
-    ) external {
+    ) external onlyBackend {
         Job storage job = jobs[jobId];
         require(job.state == JobState.Running || job.state == JobState.Granted, "Invalid state transition");
         
         Policy memory policy = policies[job.datasetRoot];
-        require(msg.sender == job.provider || msg.sender == policy.owner, "Unauthorized");
 
         job.state = JobState.Completed;
 
         // Settlement logic: Settle actual epochs, refund the rest
         uint256 settleAmount = policy.royaltyPerEpoch * actualEpochs;
-        
-        // Ensure settleAmount respects the minEscrow and doesn't exceed locked escrow
-        if (settleAmount < policy.minEscrow) {
-            settleAmount = policy.minEscrow;
-        }
         if (settleAmount > job.escrowAmount) {
             settleAmount = job.escrowAmount;
         }
@@ -238,12 +221,9 @@ contract DataPolicy {
         emit JobCompleted(jobId, actualEpochs, resultHash, attestationRef);
     }
 
-    function markJobFailed(bytes32 jobId, string calldata reasonCode) external {
+    function markJobFailed(bytes32 jobId, string calldata reasonCode) external onlyBackend {
         Job storage job = jobs[jobId];
         require(job.state == JobState.Granted || job.state == JobState.Running, "Invalid state transition");
-        
-        Policy memory policy = policies[job.datasetRoot];
-        require(msg.sender == job.provider || msg.sender == policy.owner, "Unauthorized");
 
         job.state = JobState.Failed;
         emit JobFailed(jobId, reasonCode);

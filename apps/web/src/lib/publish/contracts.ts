@@ -12,12 +12,11 @@ export type PublishStatus = "queued" | "validating" | "accepted" | "failed";
 
 export type PublishPolicyConfig = {
   allowedPurposeIds: PublishPurpose[];
-  allowedProviderIds: string[];
   royaltyPerEpoch: number;
   maxEpochsPerRun: number;
-  escrowCap: number;
+  maxRunsPerRequester: number;
   ttlHours: number;
-  requireTEE: boolean;
+  policyExpiry: number;
 };
 
 export type PublishSubmitRequest = {
@@ -233,12 +232,6 @@ export function validatePublishSubmitRequest(input: unknown): ValidationResult<P
       errors.push("policy.allowedPurposeIds contains unsupported values");
     }
 
-    if (!Array.isArray(policy.allowedProviderIds) || policy.allowedProviderIds.length === 0) {
-      errors.push("policy.allowedProviderIds must be a non-empty array");
-    } else if (!policy.allowedProviderIds.every(isNonEmptyString)) {
-      errors.push("policy.allowedProviderIds contains invalid provider IDs");
-    }
-
     if (!isPositiveNumber(policy.royaltyPerEpoch)) {
       errors.push("policy.royaltyPerEpoch must be a positive number");
     }
@@ -247,16 +240,16 @@ export function validatePublishSubmitRequest(input: unknown): ValidationResult<P
       errors.push("policy.maxEpochsPerRun must be a positive integer");
     }
 
-    if (!isPositiveNumber(policy.escrowCap)) {
-      errors.push("policy.escrowCap must be a positive number");
+    if (!isPositiveInt(policy.maxRunsPerRequester)) {
+      errors.push("policy.maxRunsPerRequester must be a positive integer");
     }
 
     if (!isPositiveInt(policy.ttlHours)) {
       errors.push("policy.ttlHours must be a positive integer");
     }
 
-    if (typeof policy.requireTEE !== "boolean") {
-      errors.push("policy.requireTEE must be a boolean");
+    if (typeof policy.policyExpiry !== "number" || policy.policyExpiry < 0) {
+      errors.push("policy.policyExpiry must be a non-negative number");
     }
   }
 

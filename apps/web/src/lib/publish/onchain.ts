@@ -10,17 +10,14 @@ export const DATA_POLICY_ABI = [
       { name: "datasetRoot", type: "bytes32" },
       { name: "manifestHash", type: "bytes32" },
       { name: "royaltyPerEpoch", type: "uint256" },
-      { name: "minEscrow", type: "uint256" },
       { name: "maxEpochsPerRun", type: "uint32" },
       { name: "maxRunsPerRequester", type: "uint32" },
       { name: "accessTtlSeconds", type: "uint64" },
       { name: "policyExpiry", type: "uint64" },
-      { name: "requireTEE", type: "bool" },
       { name: "requireResultAttestation", type: "bool" },
       { name: "openRequesters", type: "bool" },
       { name: "_allowedPurposeIds", type: "bytes32[]" },
       { name: "_allowedRequesters", type: "address[]" },
-      { name: "_approvedProviders", type: "address[]" },
     ],
     outputs: [],
   },
@@ -30,15 +27,6 @@ export const DATA_POLICY_ABI = [
 
 function purposeToBytes32(purpose: PublishPurpose): Hex {
   return keccak256(toHex(purpose));
-}
-
-function normalizeProviderAddresses(providerIds: string[], fallbackOwner: Address): Address[] {
-  const providers = providerIds.filter((providerId): providerId is Address => isAddress(providerId));
-  if (providers.length > 0) {
-    return providers;
-  }
-
-  return [fallbackOwner];
 }
 
 function toUint32(value: number): number {
@@ -67,17 +55,14 @@ export function buildRegisterDatasetArgs(input: {
     input.datasetRoot,
     input.manifestHash,
     BigInt(Math.max(1, Math.floor(input.policy.royaltyPerEpoch))),
-    BigInt(Math.max(1, Math.floor(input.policy.escrowCap))),
     toUint32(input.policy.maxEpochsPerRun),
-    1,
+    toUint32(input.policy.maxRunsPerRequester),
     ttlSeconds,
-    BigInt(0),
-    input.policy.requireTEE,
+    BigInt(input.policy.policyExpiry),
     false,
     true,
     input.policy.allowedPurposeIds.map(purposeToBytes32),
     [] as Address[],
-    normalizeProviderAddresses(input.policy.allowedProviderIds, input.ownerAddress),
   ] as const;
 }
 

@@ -7,9 +7,10 @@ import {DataPolicy} from "../src/DataPolicy.sol";
 contract DeployDataPolicy is Script {
     function run() external returns (DataPolicy policy) {
         address paymentToken = vm.envAddress("PAYMENT_TOKEN_ADDRESS");
+        address backendWallet = vm.envAddress("BACKEND_WALLET_ADDRESS");
 
         vm.startBroadcast();
-        policy = new DataPolicy(paymentToken);
+        policy = new DataPolicy(paymentToken, backendWallet);
         vm.stopBroadcast();
 
         console.log("DataPolicy deployed at:", address(policy));

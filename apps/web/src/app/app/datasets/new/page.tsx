@@ -138,9 +138,10 @@ export default function NewDatasetPage() {
 
   const [royaltyPerEpoch, setRoyaltyPerEpoch] = useState<number>(10);
   const [maxEpochsPerRun, setMaxEpochsPerRun] = useState<number>(10);
-  const [escrowCap, setEscrowCap] = useState<number>(1000);
+  const [maxRunsPerRequester, setMaxRunsPerRequester] = useState<number>(1);
   const [ttlHours, setTtlHours] = useState<number>(720);
-  const [requireTEE, setRequireTEE] = useState(true);
+  const [policyExpiry, setPolicyExpiry] = useState<string>("");
+  const [noPolicyExpiry, setNoPolicyExpiry] = useState(true);
 
   const [publishing, setPublishing] = useState(false);
   const [publishingStep, setPublishingStep] = useState<string | null>(null);
@@ -252,12 +253,11 @@ export default function NewDatasetPage() {
       setPublishProgress(60);
       const policy: PublishPolicyConfig = {
         allowedPurposeIds,
-        allowedProviderIds: ["provider-default-001"],
         royaltyPerEpoch,
         maxEpochsPerRun,
-        escrowCap,
+        maxRunsPerRequester,
         ttlHours,
-        requireTEE,
+        policyExpiry: noPolicyExpiry || !policyExpiry ? 0 : Math.floor(new Date(policyExpiry).getTime() / 1000),
       };
 
       const optionalManifestSections = enabledManifestSections.reduce<Record<string, string>>((acc, sectionId) => {
@@ -560,13 +560,13 @@ export default function NewDatasetPage() {
                       />
                     </Field>
                     <Field>
-                      <FieldLabel htmlFor="escrowCap">Escrow Cap ($)</FieldLabel>
+                      <FieldLabel htmlFor="maxRunsPerRequester">Max Runs per Requester</FieldLabel>
                       <Input
-                        id="escrowCap"
+                        id="maxRunsPerRequester"
                         type="number"
                         min={1}
-                        value={escrowCap}
-                        onChange={(e) => setEscrowCap(Number(e.target.value))}
+                        value={maxRunsPerRequester}
+                        onChange={(e) => setMaxRunsPerRequester(Number(e.target.value))}
                         disabled={publishing}
                       />
                     </Field>
@@ -585,18 +585,30 @@ export default function NewDatasetPage() {
 
                   <Field orientation="horizontal" data-disabled={publishing || undefined}>
                     <FieldContent>
-                      <FieldLabel htmlFor="require-tee">Require TEE Execution</FieldLabel>
+                      <FieldLabel htmlFor="no-policy-expiry">No Policy Expiry</FieldLabel>
                       <FieldDescription>
-                        Restrict decryption to trusted execution environments for stronger data safety guarantees.
+                        If checked, the policy has no time limit. Otherwise, set an expiry date.
                       </FieldDescription>
                     </FieldContent>
                     <Switch
-                      id="require-tee"
-                      checked={requireTEE}
-                      onCheckedChange={setRequireTEE}
+                      id="no-policy-expiry"
+                      checked={noPolicyExpiry}
+                      onCheckedChange={setNoPolicyExpiry}
                       disabled={publishing}
                     />
                   </Field>
+                  {!noPolicyExpiry && (
+                    <Field>
+                      <FieldLabel htmlFor="policyExpiry">Policy Expiry Date</FieldLabel>
+                      <Input
+                        id="policyExpiry"
+                        type="datetime-local"
+                        value={policyExpiry}
+                        onChange={(e) => setPolicyExpiry(e.target.value)}
+                        disabled={publishing}
+                      />
+                    </Field>
+                  )}
                 </FieldGroup>
               </CardContent>
             </Card>
