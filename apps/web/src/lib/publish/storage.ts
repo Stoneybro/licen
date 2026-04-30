@@ -1,3 +1,4 @@
+import "server-only";
 import { Indexer, MemData } from "@0gfoundation/0g-ts-sdk";
 import { ethers } from "ethers";
 import type { PublishManifestUploadRequest, PublishManifestUploadResponse } from "@/lib/publish/contracts";
@@ -24,7 +25,7 @@ export async function uploadBytesToOgStorage(bytes: Uint8Array): Promise<string>
   const rootHash = tree!.rootHash();
   if (rootHash === null) throw new Error("0G Merkle tree returned a null root hash");
 
-  const [, uploadErr] = await indexer.upload(memData, rpcUrl, signer);
+  const [, uploadErr] = await indexer.upload(memData, rpcUrl, signer, { finalityRequired: false });
   if (uploadErr !== null) throw new Error(`0G storage upload error: ${uploadErr}`);
 
   return rootHash;

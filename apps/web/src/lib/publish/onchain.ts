@@ -26,14 +26,7 @@ export const DATA_POLICY_ABI = [
   },
 ] as const;
 
-function requireEnv(name: "NEXT_PUBLIC_OG_DATA_POLICY_ADDRESS" | "OG_EVM_RPC_URL" | "NEXT_PUBLIC_OG_EVM_RPC_URL"): string {
-  const value = process.env[name];
-  if (!value) {
-    throw new Error(`Missing required env var: ${name}`);
-  }
 
-  return value;
-}
 
 function purposeToBytes32(purpose: PublishPurpose): Hex {
   return keccak256(toHex(purpose));
@@ -53,7 +46,8 @@ function toUint32(value: number): number {
 }
 
 export function getDataPolicyAddress(): Address {
-  const address = requireEnv("NEXT_PUBLIC_OG_DATA_POLICY_ADDRESS");
+  const address =
+    process.env.NEXT_PUBLIC_OG_DATA_POLICY_ADDRESS ?? "0x6c6b5c86752D8B5330Cb055A967E2f6253D09195";
   if (!isAddress(address)) {
     throw new Error("NEXT_PUBLIC_OG_DATA_POLICY_ADDRESS must be a valid EVM address");
   }
@@ -102,12 +96,13 @@ export function getOgPublicClient() {
 }
 
 export function getOgChain(rpcUrl?: string) {
-  const resolvedRpcUrl = rpcUrl ?? process.env.OG_EVM_RPC_URL ?? process.env.NEXT_PUBLIC_OG_EVM_RPC_URL;
-  if (!resolvedRpcUrl) {
-    throw new Error("Missing required env var: OG_EVM_RPC_URL or NEXT_PUBLIC_OG_EVM_RPC_URL");
-  }
+  const resolvedRpcUrl =
+    rpcUrl ??
+    process.env.OG_EVM_RPC_URL ??
+    process.env.NEXT_PUBLIC_OG_EVM_RPC_URL ??
+    "https://evmrpc-testnet.0g.ai";
 
-  const chainId = Number.parseInt(process.env.NEXT_PUBLIC_OG_CHAIN_ID ?? "16601", 10);
+  const chainId = 16602;
 
   return defineChain({
     id: Number.isFinite(chainId) ? chainId : 16601,

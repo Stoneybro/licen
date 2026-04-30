@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { CircleCheckBig, Plus, ShieldCheck, Sparkles } from "lucide-react";
-import { createWalletClient, custom, isAddress, type Address, type Hex } from "viem";
+import { encodeFunctionData, isAddress, type Address, type Hex } from "viem";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -42,7 +42,7 @@ import {
   type PublishPolicyConfig,
 } from "@/lib/publish/contracts";
 import { encryptDatasetFile } from "@/lib/publish/encryption";
-import { buildRegisterDatasetArgs, DATA_POLICY_ABI, getDataPolicyAddress, getOgChain } from "@/lib/publish/onchain";
+import { buildRegisterDatasetArgs, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
 
 const OPTIONAL_MANIFEST_SECTIONS = [
   {
@@ -149,6 +149,7 @@ export default function NewDatasetPage() {
 
   const [requestId, setRequestId] = useState<string | null>(null);
   const [status, setStatus] = useState<PublishStatusResponse["status"] | null>(null);
+  const [encryptionKeyData, setEncryptionKeyData] = useState<{ datasetRoot: string; ivHex: string; keyHex: string } | null>(null);
 
   useEffect(() => {
     if (!requestId) return;
@@ -227,6 +228,7 @@ export default function NewDatasetPage() {
       setPublishingStep("Encrypting dataset client-side...");
       setPublishProgress(20);
       const encrypted = await encryptDatasetFile(selectedFile);
+      setEncryptionKeyData(null);
 
       // Step 2: Upload encrypted dataset to 0G Storage
       setPublishingStep("Uploading encrypted dataset to 0G Storage...");
@@ -243,6 +245,7 @@ export default function NewDatasetPage() {
       }
       const datasetUploadData = (await datasetUploadRes.json()) as { datasetRoot: `0x${string}` };
       const datasetRoot = datasetUploadData.datasetRoot;
+      setEncryptionKeyData({ datasetRoot, ivHex: encrypted.ivHex, keyHex: encrypted.keyHex });
 
       // Step 3: Generate Manifest
       setPublishingStep("Uploading manifest to 0G Storage...");
@@ -301,11 +304,6 @@ export default function NewDatasetPage() {
       }
 
       const ethereumProvider = await activeWallet.getEthereumProvider();
-      const ogChain = getOgChain();
-      const walletClient = createWalletClient({
-        chain: ogChain,
-        transport: custom(ethereumProvider),
-      });
 
       const submitPayload: PublishSubmitRequest = {
         datasetRoot,
@@ -319,8 +317,8 @@ export default function NewDatasetPage() {
 
       const normalizedOwnerAddress =
         isAddress(walletAddress) ? (walletAddress as Address) : (() => { throw new Error("Invalid wallet address"); })();
-      const txHash = await walletClient.writeContract({
-        address: getDataPolicyAddress(),
+
+      const calldata = encodeFunctionData({
         abi: DATA_POLICY_ABI,
         functionName: "registerDataset",
         args: buildRegisterDatasetArgs({
@@ -329,9 +327,12 @@ export default function NewDatasetPage() {
           ownerAddress: normalizedOwnerAddress,
           policy,
         }),
-        account: normalizedOwnerAddress,
-        chain: ogChain,
       });
+
+      const txHash = (await ethereumProvider.request({
+        method: "eth_sendTransaction",
+        params: [{ from: normalizedOwnerAddress, to: getDataPolicyAddress(), data: calldata }],
+      })) as Hex;
 
       submitPayload.txHash = txHash;
 
@@ -660,7 +661,15 @@ export default function NewDatasetPage() {
             <Alert>
               <CircleCheckBig data-icon="inline-start" />
               <AlertTitle>Dataset published</AlertTitle>
-              <AlertDescription>Your publish request is accepted and anchored on-chain.</AlertDescription>
+              <AlertDescription className="flex flex-col gap-3">
+                <span>Your publish request is accepted and anchored on-chain.</span>
+                {encryptionKeyData && (
+                  <div className="flex flex-col gap-1">
+                    <span className="text-xs font-semibold text-destructive">Save these keys now — they will not be shown again.</span>
+                    <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs font-mono select-all">{JSON.stringify(encryptionKeyData, null, 2)}</pre>
+                  </div>
+                )}
+              </AlertDescription>
             </Alert>
           )}
         </div>
