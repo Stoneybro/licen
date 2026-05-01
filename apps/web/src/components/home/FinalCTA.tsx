@@ -39,10 +39,10 @@ export default function FinalCTA() {
             Publish a dataset
           </Link>
           <Link
-            href="/login?returnTo=/app/catalog"
+            href="/login?returnTo=/app/marketplace"
             className="inline-flex items-center justify-center h-12 px-7 border border-background/30 text-background text-[13px] font-medium tracking-tight hover:border-background/70 transition-colors min-w-[220px]"
           >
-            Browse catalog
+            browse marketplace
           </Link>
         </div>
       </div>

@@ -1,9 +1,9 @@
 import Link from "next/link";
 
 const LINKS: { label: string; href: string; external?: boolean }[] = [
-  { label: "Catalog", href: "/app/catalog" },
+  { label: "Marketplace", href: "/app/marketplace" },
   { label: "Dashboard", href: "/app" },
-  { label: "My Jobs", href: "/app/jobs" },
+  { label: "My Jobs", href: "/app/sessions" },
   { label: "Docs", href: "/docs" },
   { label: "GitHub", href: "https://github.com/", external: true },
 ];

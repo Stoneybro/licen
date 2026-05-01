@@ -1,18 +1,4 @@
-import {
-  DataPolicy,
-  DataPolicy_DatasetRegistered,
-  DataPolicy_PolicyActivated,
-  DataPolicy_PolicyPaused,
-  DataPolicy_PolicyResumed,
-  DataPolicy_AccessRequested,
-  DataPolicy_AccessGranted,
-  DataPolicy_JobStarted,
-  DataPolicy_JobCompleted,
-  DataPolicy_JobFailed,
-  DataPolicy_JobTimedOut,
-  DataPolicy_RoyaltySettled,
-  DataPolicy_RefundIssued,
-} from "generated";
+import { DataPolicy } from "generated";
 
 DataPolicy.DatasetRegistered.handler(async ({ event, context }) => {
   context.Dataset.set({
@@ -24,10 +10,10 @@ DataPolicy.DatasetRegistered.handler(async ({ event, context }) => {
     txHash: event.transaction.hash,
   });
 
-  context.EventLog.set({
+  context.AuditLog.set({
     id: `${event.transaction.hash}-${event.logIndex}`,
     datasetRoot: event.params.datasetRoot,
-    jobId: null,
+    jobId: undefined,
     eventType: "DatasetRegistered",
     timestamp: BigInt(event.block.timestamp),
     txHash: event.transaction.hash,
@@ -44,14 +30,14 @@ DataPolicy.PolicyActivated.handler(async ({ event, context }) => {
     });
   }
   
-  context.EventLog.set({
+  context.AuditLog.set({
     id: `${event.transaction.hash}-${event.logIndex}`,
     datasetRoot: event.params.datasetRoot,
-    jobId: null,
+    jobId: undefined,
     eventType: "PolicyActivated",
     timestamp: BigInt(event.block.timestamp),
     txHash: event.transaction.hash,
-    details: null
+    details: undefined
   });
 });
 
@@ -86,15 +72,15 @@ DataPolicy.AccessRequested.handler(async ({ event, context }) => {
     timestamp: BigInt(event.block.timestamp),
     txHash: event.transaction.hash,
     lastUpdatedTimestamp: BigInt(event.block.timestamp),
-    actualEpochs: null,
-    resultHash: null,
-    attestationRef: null,
-    failReason: null,
-    royaltySettled: null,
-    refundIssued: null,
+    actualEpochs: undefined,
+    resultHash: undefined,
+    attestationRef: undefined,
+    failReason: undefined,
+    royaltySettled: undefined,
+    refundIssued: undefined,
   });
 
-  context.EventLog.set({
+  context.AuditLog.set({
     id: `${event.transaction.hash}-${event.logIndex}`,
     datasetRoot: event.params.datasetRoot,
     jobId: event.params.jobId,
@@ -115,14 +101,14 @@ DataPolicy.AccessGranted.handler(async ({ event, context }) => {
     });
   }
   
-  context.EventLog.set({
+  context.AuditLog.set({
     id: `${event.transaction.hash}-${event.logIndex}`,
-    datasetRoot: job ? job.datasetRoot : null,
+    datasetRoot: job ? job.datasetRoot : undefined,
     jobId: event.params.jobId,
     eventType: "AccessGranted",
     timestamp: BigInt(event.block.timestamp),
     txHash: event.transaction.hash,
-    details: null
+    details: undefined
   });
 });
 
@@ -190,7 +176,7 @@ DataPolicy.RefundIssued.handler(async ({ event, context }) => {
   if (job) {
     context.Job.set({
       ...job,
-      state: "Refunded", // Wait, is Refunded a distinct terminal state in schema? Yes. But job might already be Failed or TimedOut. Let's keep it as is.
+      state: "Refunded",
       refundIssued: event.params.amount,
       lastUpdatedTimestamp: BigInt(event.block.timestamp),
     });

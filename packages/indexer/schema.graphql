@@ -31,7 +31,7 @@ type Job @entity {
   refundIssued: BigInt
 }
 
-type EventLog @entity {
+type AuditLog @entity {
   id: ID! # txHash-logIndex
   datasetRoot: String
   jobId: String

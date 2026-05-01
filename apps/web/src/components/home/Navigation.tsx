@@ -29,10 +29,10 @@ export default function Navigation() {
             Docs
           </Link>
           <Link
-            href="/login?returnTo=/app/catalog"
+            href="/login?returnTo=/app/marketplace"
             className="hidden md:inline-flex items-center h-8 px-3 text-[12px] font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
-            Catalog
+            Marketplace
           </Link>
           <Link
             href="/login?returnTo=/app"

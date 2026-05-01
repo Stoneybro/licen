@@ -95,7 +95,7 @@ export default function Hero() {
             style={{ transitionDelay: "240ms" }}
           >
             <Link
-              href="/login?returnTo=/app/catalog"
+              href="/login?returnTo=/app/marketplace"
               className="inline-flex items-center justify-center h-11 px-6 bg-foreground text-background text-[13px] font-medium tracking-tight min-w-[200px]"
             >
               Browse datasets

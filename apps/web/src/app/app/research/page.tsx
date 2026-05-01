@@ -6,16 +6,99 @@ import { Separator } from "@/components/ui/separator";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
-import { MOCK_JOBS, MOCK_WALLET } from "@/lib/mock";
+import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
+import { formatUnits } from "viem";
 
-export default function ResearcherDashboard() {
-  const myJobs = MOCK_JOBS;
+async function fetchJobsFromEnvio() {
+  const query = `
+    query GetJobs {
+      Job(order_by: { timestamp: desc }) {
+        id
+        datasetRoot
+        requester
+        requestedEpochs
+        state
+        timestamp
+        txHash
+        lastUpdatedTimestamp
+        actualEpochs
+        resultHash
+        attestationRef
+        failReason
+        royaltySettled
+        refundIssued
+      }
+    }
+  `;
+  try {
+    const res = await fetch("http://localhost:8080/v1/graphql", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+      cache: "no-store",
+    });
+    if (!res.ok) return [];
+    const json = await res.json();
+    return json.data?.Job || [];
+  } catch (e) {
+    console.error("Envio fetch failed", e);
+    return [];
+  }
+}
+
+async function hydrateJobs() {
+  const indexerJobs = await fetchJobsFromEnvio();
+  const publicClient = getOgPublicClient();
+  const policyAddress = getDataPolicyAddress();
+
+  const hydrated = await Promise.all(
+    indexerJobs.map(async (j: any) => {
+      let escrow = "0";
+      try {
+        const policy: any = await publicClient.readContract({
+          address: policyAddress,
+          abi: DATA_POLICY_ABI,
+          functionName: "policies",
+          args: [j.datasetRoot as `0x${string}`],
+        });
+        const royaltyPerEpoch = policy[3] || 0n;
+        const total = royaltyPerEpoch * BigInt(j.requestedEpochs);
+        escrow = formatUnits(total, 18);
+      } catch (err) {
+        console.error(`Failed to read policy for dataset ${j.datasetRoot}:`, err);
+      }
+
+      return {
+        jobId: j.id,
+        datasetRoot: j.datasetRoot,
+        datasetLabel: `Secure Dataset ${j.datasetRoot.slice(2, 6).toUpperCase()}`,
+        requester: j.requester,
+        purposeLabel: "NEURAL_RESEARCH",
+        requestedEpochs: j.requestedEpochs,
+        escrow,
+        settledAmount: j.royaltySettled ? formatUnits(BigInt(j.royaltySettled), 18) : null,
+        state: j.state,
+      };
+    })
+  );
+
+  return hydrated;
+}
+
+export default async function ResearcherDashboard() {
+  const myJobs = await hydrateJobs();
   const activeJobs = myJobs.filter((j) =>
     ["Requested", "Granted", "Running"].includes(j.state)
   );
   const completedJobs = myJobs.filter((j) => j.state === "Completed");
   const totalSpent = myJobs.reduce(
     (acc, j) => acc + parseFloat(j.settledAmount ?? "0"),
+    0
+  );
+  
+  // Calculate locked escrow across active jobs
+  const escrowLocked = activeJobs.reduce(
+    (acc, j) => acc + parseFloat(j.escrow ?? "0"),
     0
   );
 
@@ -30,7 +113,7 @@ export default function ResearcherDashboard() {
           <InfoIcon className="size-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
             <span className="text-foreground font-medium">You are a researcher.</span>{" "}
-            Browse the catalog to find datasets with approved policies. Pick a dataset, choose your
+            Browse the marketplace to find datasets with approved policies. Pick a dataset, choose your
             training purpose and epoch count, then lock lUSD escrow. A 0G Compute node runs your
             fine-tuning job against the encrypted data — royalties settle on-chain when it completes
             and any unused escrow is automatically refunded to you.
@@ -48,7 +131,7 @@ export default function ResearcherDashboard() {
             },
             {
               label: "Escrow Locked",
-              value: `${MOCK_WALLET.escrowLocked} lUSD`,
+              value: `${escrowLocked} lUSD`,
               sub: activeJobs.length > 0 ? `across ${activeJobs.length} active job${activeJobs.length > 1 ? "s" : ""}` : "none locked",
               note: "Settled to exact epochs run; any unused amount is refunded to you automatically when a job ends.",
             },
@@ -92,7 +175,7 @@ export default function ResearcherDashboard() {
               </p>
             </div>
             <Button asChild size="sm" variant="ghost" className="h-7 text-xs shrink-0">
-              <Link href="/app/jobs">
+              <Link href="/app/sessions">
                 View all <ArrowRightIcon data-icon="inline-end" />
               </Link>
             </Button>
@@ -105,11 +188,11 @@ export default function ResearcherDashboard() {
                 <div>
                   <p className="text-sm font-medium">No jobs yet</p>
                   <p className="text-xs text-muted-foreground mt-1 max-w-[36ch]">
-                    Browse the catalog to find a dataset and submit your first training request.
+                    Browse the marketplace to find a dataset and submit your first training request.
                   </p>
                 </div>
                 <Button asChild size="sm" className="h-7 text-xs gap-1 mt-1">
-                  <Link href="/app/catalog">Browse catalog →</Link>
+                  <Link href="/app/marketplace">browse marketplace →</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -118,7 +201,7 @@ export default function ResearcherDashboard() {
               {myJobs.slice(0, 6).map((j) => (
                 <Link
                   key={j.jobId}
-                  href={`/app/jobs/${j.jobId}`}
+                  href={`/app/sessions/${j.jobId}`}
                   className="group flex items-center gap-3 rounded-md border border-border px-4 py-3 hover:border-foreground/20 transition-colors"
                 >
                   <div className="flex-1 min-w-0">
@@ -138,7 +221,7 @@ export default function ResearcherDashboard() {
                         {j.settledAmount ? `${j.settledAmount} settled` : "escrow locked"}
                       </p>
                     </div>
-                    <JobStateBadge state={j.state} />
+                    <JobStateBadge state={j.state as any} />
                   </div>
                 </Link>
               ))}
@@ -146,15 +229,15 @@ export default function ResearcherDashboard() {
           )}
         </div>
 
-        {/* Catalog CTA */}
+        {/* Marketplace CTA */}
         <Card className="bg-muted/20">
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <BookOpenIcon className="size-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-medium">Browse the Catalog</CardTitle>
+              <CardTitle className="text-sm font-medium">Browse the marketplace</CardTitle>
             </div>
             <CardDescription className="text-xs">
-              The catalog lists all datasets with active on-chain policies. You can filter by
+              the marketplace lists all datasets with active on-chain policies. You can filter by
               purpose, check policy terms, and submit a training request in minutes.
             </CardDescription>
           </CardHeader>
@@ -175,9 +258,9 @@ export default function ResearcherDashboard() {
             </div>
             <Separator className="mb-4" />
             <Button asChild size="sm" className="h-7 text-xs gap-1">
-              <Link href="/app/catalog">
+              <Link href="/app/marketplace">
                 <BookOpenIcon data-icon="inline-start" />
-                Open catalog
+                open marketplace
               </Link>
             </Button>
           </CardContent>

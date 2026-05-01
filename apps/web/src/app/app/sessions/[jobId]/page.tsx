@@ -10,9 +10,10 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
-import { MOCK_JOBS, MOCK_DATASETS, type JobState } from "@/lib/mock";
+import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
+import { formatUnits } from "viem";
 
-const STATE_ORDER: JobState[] = ["Requested", "Granted", "Running", "Completed"];
+const STATE_ORDER = ["Requested", "Granted", "Running", "Completed"];
 
 const REASON_MAP: Record<string, string> = {
   COMPUTE_OOM: "Compute node ran out of memory during training execution.",
@@ -20,10 +21,10 @@ const REASON_MAP: Record<string, string> = {
   ATTESTATION_FAILED: "Attestation verification failed for the compute environment.",
 };
 
-function getTimelineNodes(state: JobState): { state: JobState | string; status: "completed" | "active" | "pending" | "fork" }[] {
-  const nodes: { state: JobState | string; status: "completed" | "active" | "pending" | "fork" }[] = [];
+function getTimelineNodes(state: string): { state: string; status: "completed" | "active" | "pending" | "fork" }[] {
+  const nodes: { state: string; status: "completed" | "active" | "pending" | "fork" }[] = [];
 
-  const mainIdx = STATE_ORDER.indexOf(state as JobState);
+  const mainIdx = STATE_ORDER.indexOf(state);
   const isFork = state === "Failed" || state === "TimedOut";
   const isRefunded = state === "Refunded";
 
@@ -50,20 +51,109 @@ function getTimelineNodes(state: JobState): { state: JobState | string; status: 
   return nodes;
 }
 
+async function fetchJobData(jobId: string) {
+  const query = `
+    query GetJob {
+      Job(where: { id: { _ilike: "${jobId}" } }) {
+        id
+        datasetRoot
+        requester
+        requestedEpochs
+        state
+        timestamp
+        txHash
+        lastUpdatedTimestamp
+        actualEpochs
+        resultHash
+        attestationRef
+        failReason
+        royaltySettled
+        refundIssued
+      }
+      AuditLog(where: { jobId: { _ilike: "${jobId}" } }, order_by: { timestamp: asc }) {
+        id
+        eventType
+        timestamp
+        txHash
+        details
+      }
+    }
+  `;
+  try {
+    const res = await fetch("http://localhost:8080/v1/graphql", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const json = await res.json();
+    if (!json.data?.Job?.[0]) return null;
+    return {
+      job: json.data.Job[0],
+      events: json.data.AuditLog || [],
+    };
+  } catch (e) {
+    console.error("Envio fetch failed", e);
+    return null;
+  }
+}
+
+async function hydrateJob(jobId: string) {
+  const data = await fetchJobData(jobId);
+  if (!data) return null;
+
+  const publicClient = getOgPublicClient();
+  const policyAddress = getDataPolicyAddress();
+  let policyDetails: any = null;
+  let escrow = "0";
+
+  try {
+    const policy: any = await publicClient.readContract({
+      address: policyAddress,
+      abi: DATA_POLICY_ABI,
+      functionName: "policies",
+      args: [data.job.datasetRoot as `0x${string}`],
+    });
+    policyDetails = policy;
+    const royaltyPerEpoch = policy[3] || 0n;
+    const total = royaltyPerEpoch * BigInt(data.job.requestedEpochs);
+    escrow = formatUnits(total, 18);
+  } catch (err) {
+    console.error(`Failed to read policy for dataset ${data.job.datasetRoot}:`, err);
+  }
+
+  return {
+    ...data.job,
+    datasetLabel: `Secure Dataset ${data.job.datasetRoot.slice(2, 6).toUpperCase()}`,
+    purposeLabel: "NEURAL_RESEARCH",
+    providerId: "0G Compute",
+    provider: "0x0000000000000000000000000000000000000000",
+    escrow,
+    createdAt: new Date(Number(data.job.timestamp) * 1000).toISOString(),
+    updatedAt: new Date(Number(data.job.lastUpdatedTimestamp) * 1000).toISOString(),
+    events: data.events,
+    policySnapshot: policyDetails ? {
+      manifestHash: policyDetails[2],
+      royaltyPerEpoch: formatUnits(policyDetails[3], 18),
+      accessTtlSeconds: Number(policyDetails[6]),
+      policyExpiry: new Date(Number(policyDetails[7]) * 1000).toISOString()
+    } : null,
+  };
+}
+
 export default async function JobDetailPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await params;
-  const job = MOCK_JOBS.find((j) => j.jobId === jobId);
+  const job = await hydrateJob(jobId);
   if (!job) notFound();
 
-  const dataset = MOCK_DATASETS.find((d) => d.datasetRoot === job.datasetRoot);
   const timelineNodes = getTimelineNodes(job.state);
   const epochProgress = job.actualEpochs !== null
     ? Math.round((job.actualEpochs / job.requestedEpochs) * 100)
     : job.state === "Running" ? 45 : job.state === "Requested" || job.state === "Granted" ? 0 : 100;
 
-  const isTerminal = job.state === "Completed" || job.state === "Failed" || job.state === "TimedOut" || job.state === "Refunded";
   const needsRefund = job.state === "Failed" || job.state === "TimedOut";
-  const reasonCode = job.events.find((e) => e.topic === "JobFailed" || e.topic === "JobTimedOut")?.args?.reasonCode;
+  const reasonCode = job.failReason;
 
   return (
     <div className="flex flex-col min-h-full">
@@ -75,15 +165,15 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
           <div className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <Button asChild variant="ghost" size="sm" className="h-7 -ml-2 text-xs text-muted-foreground">
-                <Link href="/app/jobs">
+                <Link href="/app/sessions">
                   <ArrowLeftIcon data-icon="inline-start" />
                   My Sessions
                 </Link>
               </Button>
             </div>
             <div className="flex items-center gap-2 flex-wrap">
-              <HashChip hash={job.jobId} front={10} back={8} className="text-sm" />
-              <JobStateBadge state={job.state} />
+              <HashChip hash={job.id} front={10} back={8} className="text-sm" />
+              <JobStateBadge state={job.state as any} />
               {job.state === "Running" && (
                 <Badge variant="outline" className="text-[10px] h-4 animate-pulse">live</Badge>
               )}
@@ -129,7 +219,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
               <CardContent>
                 <ol className="flex flex-col gap-0">
                   {timelineNodes.map((node, i) => {
-                    const event = job.events.find((e) => {
+                    const event = job.events.find((e: any) => {
                       const topicMap: Record<string, string> = {
                         Requested: "AccessRequested",
                         Granted: "AccessGranted",
@@ -139,7 +229,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                         TimedOut: "JobTimedOut",
                         Refunded: "RefundIssued",
                       };
-                      return e.topic === topicMap[node.state as string];
+                      return e.eventType === topicMap[node.state];
                     });
 
                     const isLast = i === timelineNodes.length - 1;
@@ -177,7 +267,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                             <div className="mt-1 flex items-center gap-2 flex-wrap">
                               <HashChip hash={event.txHash} label="tx" />
                               <span className="text-[10px] text-muted-foreground">
-                                block {event.blockNumber.toLocaleString()} · {event.timestamp.replace("T", " ").slice(0, 16)} UTC
+                                {new Date(Number(event.timestamp) * 1000).toISOString().replace("T", " ").slice(0, 16)} UTC
                               </span>
                             </div>
                           )}
@@ -206,22 +296,24 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                 <CardTitle className="text-sm font-medium">Event Log</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-3">
-                {job.events.map((e, i) => (
+                {job.events.map((e: any, i: number) => (
                   <div key={i} className="flex flex-col gap-1">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="secondary" className="font-mono text-[10px] h-4">{e.topic}</Badge>
+                      <Badge variant="secondary" className="font-mono text-[10px] h-4">{e.eventType}</Badge>
                       <HashChip hash={e.txHash} label="tx" />
                       <span className="text-[10px] text-muted-foreground">
-                        #{e.blockNumber.toLocaleString()} · {e.timestamp.replace("T", " ").slice(0, 16)} UTC
+                        {new Date(Number(e.timestamp) * 1000).toISOString().replace("T", " ").slice(0, 16)} UTC
                       </span>
                     </div>
-                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 pl-1">
-                      {Object.entries(e.args).map(([k, v]) => (
-                        <span key={k} className="font-mono text-[10px] text-muted-foreground">
-                          <span className="text-foreground">{k}</span>=<span>{v}</span>
-                        </span>
-                      ))}
-                    </div>
+                    {e.details && (
+                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 pl-1">
+                        {Object.entries(JSON.parse(e.details)).map(([k, v]) => (
+                          <span key={k} className="font-mono text-[10px] text-muted-foreground">
+                            <span className="text-foreground">{k}</span>=<span>{v as React.ReactNode}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     {i < job.events.length - 1 && <Separator className="mt-1" />}
                   </div>
                 ))}
@@ -237,21 +329,21 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                 <CardTitle className="text-sm font-medium">Payment Ledger</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
-                <LedgerRow label="Locked" value={`${job.escrow} lUSD`} txHash={job.events.find((e) => e.topic === "AccessGranted")?.txHash} />
-                {job.settledAmount && (
-                  <LedgerRow label="Settled to publisher" value={`${job.settledAmount} lUSD`} txHash={job.events.find((e) => e.topic === "RoyaltySettled")?.txHash} />
+                <LedgerRow label="Locked" value={`${job.escrow} lUSD`} txHash={job.events.find((e: any) => e.eventType === "AccessGranted")?.txHash} />
+                {job.royaltySettled && (
+                  <LedgerRow label="Settled to publisher" value={`${formatUnits(BigInt(job.royaltySettled), 18)} lUSD`} txHash={job.events.find((e: any) => e.eventType === "RoyaltySettled")?.txHash} />
                 )}
-                {job.refundAmount && (
-                  <LedgerRow label="Refunded to you" value={`${job.refundAmount} lUSD`} txHash={job.events.find((e) => e.topic === "RefundIssued")?.txHash} />
+                {job.refundIssued && (
+                  <LedgerRow label="Refunded to you" value={`${formatUnits(BigInt(job.refundIssued), 18)} lUSD`} txHash={job.events.find((e: any) => e.eventType === "RefundIssued")?.txHash} />
                 )}
-                {!job.settledAmount && !job.refundAmount && (
+                {!job.royaltySettled && !job.refundIssued && (
                   <p className="text-xs text-muted-foreground">Settlement pending job completion.</p>
                 )}
                 <Separator />
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Net cost</span>
                   <span className="font-mono font-medium">
-                    {job.settledAmount ?? "pending"} lUSD
+                    {job.royaltySettled ? formatUnits(BigInt(job.royaltySettled), 18) : "pending"} lUSD
                   </span>
                 </div>
               </CardContent>
@@ -337,11 +429,11 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
               </CardHeader>
               <CardContent className="flex flex-col gap-2 text-xs">
                 <InfoRow label="Dataset" value={job.datasetRoot} mono />
-                <InfoRow label="Manifest" value={dataset?.manifestHash ?? "—"} mono />
+                <InfoRow label="Manifest" value={job.policySnapshot?.manifestHash ?? "—"} mono />
                 <Separator />
-                <InfoRow label="Rate" value={`${dataset?.royaltyPerEpoch ?? "—"} lUSD/epoch`} mono={false} />
-                <InfoRow label="Session window" value={`${dataset?.accessTtlSeconds ?? "—"}s`} mono={false} />
-                <InfoRow label="Expires" value={dataset?.policyExpiry.split("T")[0] ?? "—"} mono={false} />
+                <InfoRow label="Rate" value={`${job.policySnapshot?.royaltyPerEpoch ?? "—"} lUSD/epoch`} mono={false} />
+                <InfoRow label="Session window" value={`${job.policySnapshot?.accessTtlSeconds ?? "—"}s`} mono={false} />
+                <InfoRow label="Expires" value={job.policySnapshot?.policyExpiry.split("T")[0] ?? "—"} mono={false} />
                 {needsRefund && (
                   <Button size="sm" className="mt-2 h-8 text-xs w-full">
                     Request refund

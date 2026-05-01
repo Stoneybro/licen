@@ -72,7 +72,7 @@ export default async function DatasetDetailPage({ params }: { params: Promise<{ 
                     {datasetJobs.map((j) => (
                       <TableRow key={j.jobId} className="cursor-pointer hover:bg-muted/40">
                         <TableCell className="pl-6">
-                          <Link href={`/app/jobs/${j.jobId}`} className="block">
+                          <Link href={`/app/sessions/${j.jobId}`} className="block">
                             <HashChip hash={j.jobId} front={8} back={6} />
                           </Link>
                         </TableCell>

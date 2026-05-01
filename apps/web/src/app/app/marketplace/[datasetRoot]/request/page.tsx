@@ -13,7 +13,9 @@ import { Select, SelectContent, SelectItem, SelectGroup, SelectTrigger, SelectVa
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HashChip } from "@/components/app/hash-chip";
 import { AppTopbar } from "@/components/app/app-topbar";
-import { MOCK_DATASETS, MOCK_WALLET, PURPOSES } from "@/lib/mock";
+import { MOCK_WALLET, PURPOSES } from "@/lib/mock";
+import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
+import { formatUnits } from "viem";
 
 const STEPS = ["Configure", "Review", "Confirm"];
 
@@ -23,11 +25,79 @@ function getPurposeLabel(id: string): string {
 
 export default function RequestAccessPage() {
   const { datasetRoot } = useParams<{ datasetRoot: string }>();
-  const dataset = MOCK_DATASETS.find((d) => d.datasetRoot === datasetRoot);
-
+  
+  const [dataset, setDataset] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  
   const [step, setStep] = React.useState(0);
   const [epochs, setEpochs] = React.useState("5");
-  const [purposeId, setPurposeId] = React.useState(dataset?.allowedPurposeIds[0] ?? "");
+  const [purposeId, setPurposeId] = React.useState("");
+
+  React.useEffect(() => {
+    async function fetchDataset() {
+      if (!datasetRoot) return;
+      try {
+        const query = `
+          query GetDataset {
+            Dataset(where: { id: { _ilike: "${datasetRoot}" } }) {
+              id
+              owner
+              manifestHash
+              active
+            }
+          }
+        `;
+        const res = await fetch("http://localhost:8080/v1/graphql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query })
+        });
+        const json = await res.json();
+        const d = json.data?.Dataset?.[0];
+        if (!d) {
+          setLoading(false);
+          return;
+        }
+
+        const publicClient = getOgPublicClient();
+        const policyAddress = getDataPolicyAddress();
+        const policy: any = await publicClient.readContract({
+          address: policyAddress,
+          abi: DATA_POLICY_ABI,
+          functionName: "policies",
+          args: [d.id as `0x${string}`],
+        });
+
+        const hydrated = {
+          datasetRoot: d.id,
+          label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
+          royaltyPerEpoch: formatUnits(policy[3] || 0n, 18),
+          maxEpochsPerRun: Number(policy[4] || 0),
+          requireResultAttestation: policy[8] || false,
+          allowedPurposeIds: ["0x6e657572616c5f72657365617263680000000000000000000000000000000000"],
+        };
+
+        setDataset(hydrated);
+        setPurposeId(hydrated.allowedPurposeIds[0]);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    }
+    fetchDataset();
+  }, [datasetRoot]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-full">
+        <AppTopbar title="Start Training" />
+        <div className="flex-1 p-6 flex items-center justify-center">
+          <p className="text-sm text-muted-foreground">Loading dataset...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!dataset) return null;
 
@@ -42,7 +112,7 @@ export default function RequestAccessPage() {
       <div className="flex-1 p-6 flex flex-col gap-4 max-w-xl">
         {/* Breadcrumb */}
         <Button asChild variant="ghost" size="sm" className="h-7 -ml-2 text-xs text-muted-foreground w-fit">
-          <Link href={`/app/catalog/${datasetRoot}`}>
+          <Link href={`/app/marketplace/${datasetRoot}`}>
             <ArrowLeftIcon data-icon="inline-start" />
             {dataset.label}
           </Link>
@@ -91,7 +161,7 @@ export default function RequestAccessPage() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectGroup>
-                      {dataset.allowedPurposeIds.map((pid) => (
+                      {dataset.allowedPurposeIds.map((pid: string) => (
                         <SelectItem key={pid} value={pid} className="text-xs font-mono">
                           {getPurposeLabel(pid)}
                         </SelectItem>
