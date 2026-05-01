@@ -34,10 +34,7 @@ export default function PublisherDashboard() {
         <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 px-4 py-3">
           <InfoIcon className="size-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            <span className="text-foreground font-medium">You are a publisher.</span>{" "}
-            Upload your dataset to 0G Storage, deploy a policy on-chain, and earn royalties
-            automatically every time a researcher runs an approved training job against your data.
-            You set the rate, the allowed use-cases, and the terms — the smart contract enforces them.
+           Securely upload your datasets, set your own usage rules, and earn royalties automatically every time an AI model trains on your data. You control the price and the permissions, Licen handles the enforcement and guarantees your payments.
           </p>
         </div>
 
@@ -49,9 +46,9 @@ export default function PublisherDashboard() {
             </CardHeader>
             <CardContent className="flex flex-col gap-1">
               <p className="text-xl font-semibold tabular-nums">{myDatasets.length}</p>
-              <p className="text-xs text-muted-foreground">{activeDatasets.length} with active policy</p>
+              <p className="text-xs text-muted-foreground">{activeDatasets.length} active datasets</p>
               <p className="text-[11px] text-muted-foreground/60 leading-relaxed border-t border-border pt-1.5 mt-0.5">
-                Datasets you own with an on-chain policy deployed
+                Datasets you have uploaded and made available for AI training
               </p>
             </CardContent>
           </Card>
@@ -71,20 +68,20 @@ export default function PublisherDashboard() {
 
           <Card>
             <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Lifetime Royalties</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Earnings</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-1">
               <p className="text-xl font-semibold tabular-nums">{totalRoyalties.toLocaleString()} lUSD</p>
-              <p className="text-xs text-muted-foreground">settled to your wallet</p>
+              <p className="text-xs text-muted-foreground">paid directly to your wallet</p>
               <p className="text-[11px] text-muted-foreground/60 leading-relaxed border-t border-border pt-1.5 mt-0.5">
-                Total lUSD paid to you after training jobs completed and settled
+                Total royalties you've earned from completed AI training sessions
               </p>
             </CardContent>
           </Card>
 
           <Card className={activeJobsOnMyDatasets.length > 0 ? "border-foreground/30" : ""}>
             <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Access Jobs</CardTitle>
+              <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Training Sessions</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-1">
               <p className="text-xl font-semibold tabular-nums">{totalJobs}</p>
@@ -101,8 +98,8 @@ export default function PublisherDashboard() {
               </div>
               <p className="text-[11px] text-muted-foreground/60 leading-relaxed border-t border-border pt-1.5 mt-0.5">
                 {activeJobsOnMyDatasets.length > 0
-                  ? "Escrow is locked for active jobs — royalties settle automatically on completion"
-                  : "Number of times researchers have requested training access to your datasets"}
+                  ? "Payments are securely locked, you get paid as soon as they finish"
+                  : "Number of times AI researchers have trained models on your datasets"}
               </p>
             </CardContent>
           </Card>
@@ -116,7 +113,7 @@ export default function PublisherDashboard() {
               <p className="text-xs text-muted-foreground mt-0.5">
                 A summary of your published datasets. Go to{" "}
                 <Link href="/app/datasets" className="underline underline-offset-2 hover:text-foreground">My Datasets</Link>{" "}
-                to view full policy details and manage each one.
+                to view full policy details, manage each one and create new ones.
               </p>
             </div>
             <Button asChild size="sm" variant="ghost" className="h-7 text-xs shrink-0">
@@ -150,8 +147,8 @@ export default function PublisherDashboard() {
                       <TableHead className="pl-6 text-xs">Dataset</TableHead>
                       <TableHead className="text-xs">Status</TableHead>
                       <TableHead className="text-xs">Rate</TableHead>
-                      <TableHead className="text-xs text-right">Royalties</TableHead>
-                      <TableHead className="text-xs text-right pr-6">Jobs</TableHead>
+                      <TableHead className="text-xs text-right">Earnings</TableHead>
+                      <TableHead className="text-xs text-right pr-6">Sessions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -171,10 +168,10 @@ export default function PublisherDashboard() {
                         <TableCell className="font-mono text-xs">{d.royaltyPerEpoch} lUSD/epoch</TableCell>
                         <TableCell className="text-right font-mono text-xs">{d.lifetimeRoyalties} lUSD</TableCell>
                         <TableCell className="text-right pr-6">
-                          <div className="flex flex-col items-end gap-0.5">
+                          <div className="flex items-center justify-end gap-2">
                             <span className="font-mono text-xs">{d.jobCount}</span>
                             {d.activeJobCount > 0 && (
-                              <Badge variant="outline" className="text-[10px] h-4">{d.activeJobCount} active</Badge>
+                              <Badge variant="outline" className="text-[10px] h-4 bg-muted/50">{d.activeJobCount} active</Badge>
                             )}
                           </div>
                         </TableCell>
