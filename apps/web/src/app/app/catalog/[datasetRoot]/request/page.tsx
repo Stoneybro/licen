@@ -38,7 +38,7 @@ export default function RequestAccessPage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <AppTopbar title="Request Access" />
+      <AppTopbar title="Start Training" />
       <div className="flex-1 p-6 flex flex-col gap-4 max-w-xl">
         {/* Breadcrumb */}
         <Button asChild variant="ghost" size="sm" className="h-7 -ml-2 text-xs text-muted-foreground w-fit">
@@ -103,7 +103,7 @@ export default function RequestAccessPage() {
 
               <div className="flex flex-col gap-1.5">
                 <label className="text-xs text-muted-foreground">
-                  Epochs requested (max {dataset.maxEpochsPerRun})
+                  Epochs to train (max {dataset.maxEpochsPerRun})
                 </label>
                 <Input
                   type="number"
@@ -177,9 +177,9 @@ export default function RequestAccessPage() {
                 <span>Settle-by-actual · refund delta</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">TEE required</span>
-                <Badge variant={dataset.requireTEE ? "outline" : "secondary"} className="text-[10px] h-4">
-                  {dataset.requireTEE ? "Yes" : "No"}
+                <span className="text-muted-foreground">Proof required</span>
+                <Badge variant={dataset.requireResultAttestation ? "outline" : "secondary"} className="text-[10px] h-4">
+                  {dataset.requireResultAttestation ? "Yes" : "No"}
                 </Badge>
               </div>
               <Separator />

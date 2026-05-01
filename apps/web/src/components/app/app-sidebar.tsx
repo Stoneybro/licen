@@ -106,18 +106,18 @@ export function AppSidebar() {
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/app/jobs")} tooltip="My Jobs" className={menuButtonClass}>
+                <SidebarMenuButton asChild isActive={isActive("/app/jobs")} tooltip="My Sessions" className={menuButtonClass}>
                   <Link href="/app/jobs">
                     <BriefcaseIcon />
-                    <span>My Jobs</span>
+                    <span>My Sessions</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/app/catalog")} tooltip="Catalog" className={menuButtonClass}>
+                <SidebarMenuButton asChild isActive={isActive("/app/catalog")} tooltip="Browse Datasets" className={menuButtonClass}>
                   <Link href="/app/catalog">
                     <BookOpenIcon />
-                    <span>Catalog</span>
+                    <span>Browse Datasets</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

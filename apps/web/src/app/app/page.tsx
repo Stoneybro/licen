@@ -61,7 +61,7 @@ export default function PublisherDashboard() {
               <p className="text-xl font-semibold tabular-nums">{activeDatasets.length}</p>
               <p className="text-xs text-muted-foreground">accepting requests now</p>
               <p className="text-[11px] text-muted-foreground/60 leading-relaxed border-t border-border pt-1.5 mt-0.5">
-                A policy is active when it&apos;s live on-chain and not paused or expired
+               Active policies can receive researcher requests until paused or expired.
               </p>
             </CardContent>
           </Card>

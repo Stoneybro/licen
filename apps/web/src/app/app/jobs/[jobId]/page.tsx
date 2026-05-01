@@ -67,7 +67,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
 
   return (
     <div className="flex flex-col min-h-full">
-      <AppTopbar title="Job Detail" />
+      <AppTopbar title="Session Detail" />
 
       <div className="flex-1 p-6 flex flex-col gap-4">
         {/* Header */}
@@ -77,7 +77,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
               <Button asChild variant="ghost" size="sm" className="h-7 -ml-2 text-xs text-muted-foreground">
                 <Link href="/app/jobs">
                   <ArrowLeftIcon data-icon="inline-start" />
-                  Jobs
+                  My Sessions
                 </Link>
               </Button>
             </div>
@@ -234,7 +234,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
             {/* Escrow Ledger */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Escrow Ledger</CardTitle>
+                <CardTitle className="text-sm font-medium">Payment Ledger</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
                 <LedgerRow label="Locked" value={`${job.escrow} lUSD`} txHash={job.events.find((e) => e.topic === "AccessGranted")?.txHash} />
@@ -296,15 +296,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                 )}
                 <Separator />
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">TEE required</span>
-                  <Badge variant={dataset?.requireTEE ? "outline" : "secondary"} className="text-[10px] h-4">
-                    {dataset?.requireTEE ? "Yes" : "No"}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Attestation</span>
+                  <span className="text-muted-foreground">Proof required</span>
                   <Badge variant={job.attestationRef ? "outline" : "secondary"} className="text-[10px] h-4">
-                    {job.attestationRef ? "present" : "not yet"}
+                    {job.attestationRef ? "verified" : "pending"}
                   </Badge>
                 </div>
               </CardContent>
@@ -345,9 +339,9 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                 <InfoRow label="Dataset" value={job.datasetRoot} mono />
                 <InfoRow label="Manifest" value={dataset?.manifestHash ?? "—"} mono />
                 <Separator />
-                <InfoRow label="Royalty/epoch" value={`${dataset?.royaltyPerEpoch ?? "—"} lUSD`} mono />
-                <InfoRow label="TTL" value={`${dataset?.accessTtlSeconds ?? "—"}s`} mono />
-                <InfoRow label="Policy expiry" value={dataset?.policyExpiry.split("T")[0] ?? "—"} mono={false} />
+                <InfoRow label="Rate" value={`${dataset?.royaltyPerEpoch ?? "—"} lUSD/epoch`} mono={false} />
+                <InfoRow label="Session window" value={`${dataset?.accessTtlSeconds ?? "—"}s`} mono={false} />
+                <InfoRow label="Expires" value={dataset?.policyExpiry.split("T")[0] ?? "—"} mono={false} />
                 {needsRefund && (
                   <Button size="sm" className="mt-2 h-8 text-xs w-full">
                     Request refund

@@ -22,7 +22,7 @@ export default function DatasetsPage() {
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <p className="text-sm text-muted-foreground">
-              {myDatasets.length} dataset{myDatasets.length !== 1 ? "s" : ""}
+              {myDatasets.length} published dataset{myDatasets.length !== 1 ? "s" : ""}
             </p>
           </div>
           <Button asChild size="sm" className="h-8 gap-1.5 shrink-0">
@@ -37,11 +37,7 @@ export default function DatasetsPage() {
         <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 px-4 py-3">
           <InfoIcon className="size-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Each dataset you publish gets an on-chain <span className="text-foreground font-medium">DataPolicy</span> that
-            defines who can train on it, at what royalty rate, for which purposes, and under what constraints (TEE,
-            attestation, epoch caps). Researchers browse the catalog, request access by locking lUSD escrow,
-            and their jobs settle royalties back to you automatically — no manual intervention needed.
-            You can pause, resume, or update a policy at any time from the dataset detail page.
+            Each dataset you publish is protected by secure usage rules that you define.  You control the price, the allowed purposes, and the limits. Researchers can request access only under the terms you set.
           </p>
         </div>
 
@@ -53,7 +49,7 @@ export default function DatasetsPage() {
               <div>
                 <p className="text-sm font-medium">No datasets yet</p>
                 <p className="text-xs text-muted-foreground mt-1 max-w-[36ch]">
-                  Publish your first dataset to 0G Storage and deploy a policy to start earning royalties.
+                 Publish an encrypted dataset, set its training rules, and make it available for approved researcher requests.
                 </p>
               </div>
               <Button asChild size="sm" className="h-7 text-xs gap-1 mt-1">
@@ -78,10 +74,7 @@ export default function DatasetsPage() {
                       <Badge variant={d.active ? "outline" : "secondary"} className="text-[10px] h-4">
                         {d.active ? "Active" : "Paused"}
                       </Badge>
-                      {d.requireTEE && (
-                        <Badge variant="outline" className="text-[10px] h-4">TEE</Badge>
-                      )}
-                      {d.allowedRequesters.length === 0 && (
+                      {d.openRequesters && (
                         <Badge variant="secondary" className="text-[10px] h-4">Open</Badge>
                       )}
                     </div>
@@ -101,7 +94,7 @@ export default function DatasetsPage() {
                       <span className="text-[10px] text-muted-foreground/60">settled lifetime</span>
                     </div>
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-muted-foreground">Access jobs</span>
+                      <span className="text-muted-foreground">Training Sessions</span>
                       <span className="font-mono font-medium">{d.jobCount}</span>
                       <span className="text-[10px] text-muted-foreground/60">
                         {d.activeJobCount > 0 ? `${d.activeJobCount} running now` : "none active"}
@@ -111,14 +104,14 @@ export default function DatasetsPage() {
 
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-muted-foreground">Min escrow</span>
-                      <span className="font-mono font-medium">{d.minEscrow} lUSD</span>
-                      <span className="text-[10px] text-muted-foreground/60">required upfront</span>
-                    </div>
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-muted-foreground">Max epochs/run</span>
+                      <span className="text-muted-foreground">Max epochs/session</span>
                       <span className="font-mono font-medium">{d.maxEpochsPerRun}</span>
                       <span className="text-[10px] text-muted-foreground/60">per request</span>
+                    </div>
+                    <div className="flex flex-col gap-0.5">
+                      <span className="text-muted-foreground">Max sessions</span>
+                      <span className="font-mono font-medium">{d.maxRunsPerRequester}/researcher</span>
+                      <span className="text-[10px] text-muted-foreground/60">lifetime cap</span>
                     </div>
                     <div className="flex flex-col gap-0.5">
                       <span className="text-muted-foreground">Expires</span>
@@ -131,8 +124,8 @@ export default function DatasetsPage() {
 
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] text-muted-foreground/60">
-                      {d.allowedRequesters.length === 0 ? "Open to all requesters" : `${d.allowedRequesters.length} approved requester${d.allowedRequesters.length !== 1 ? "s" : ""}`}
-                      {d.requireResultAttestation ? " · attestation required" : ""}
+                      {d.openRequesters ? "Open to all researchers" : `${d.allowedRequesters.length} approved researcher${d.allowedRequesters.length !== 1 ? "s" : ""}`}
+                      {d.requireResultAttestation ? " · proof required" : ""}
                     </p>
                     <Button asChild size="sm" variant="ghost" className="h-6 text-xs">
                       <Link href={`/app/datasets/${d.datasetRoot}`}>Manage →</Link>

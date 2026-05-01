@@ -42,10 +42,10 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
             {isOwner ? (
               <Button size="sm" variant="outline" className="h-8 text-xs" disabled>You own this</Button>
             ) : !dataset.active ? (
-              <Button size="sm" variant="outline" className="h-8 text-xs" disabled>Policy paused</Button>
+              <Button size="sm" variant="outline" className="h-8 text-xs" disabled>Unavailable</Button>
             ) : (
               <Button asChild size="sm" className="h-8 text-xs">
-                <Link href={`/app/catalog/${dataset.datasetRoot}/request`}>Request access →</Link>
+                <Link href={`/app/catalog/${dataset.datasetRoot}/request`}>Start training →</Link>
               </Button>
             )}
           </div>
@@ -65,37 +65,27 @@ export default async function CatalogDetailPage({ params }: { params: Promise<{ 
                 <span className="font-mono font-medium">{dataset.royaltyPerEpoch} lUSD/epoch</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Min escrow</span>
-                <span className="font-mono font-medium">{dataset.minEscrow} lUSD</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Max epochs/run</span>
+                <span className="text-muted-foreground">Max epochs/session</span>
                 <span className="font-mono font-medium">{dataset.maxEpochsPerRun}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Max runs/requester</span>
+                <span className="text-muted-foreground">Max sessions/researcher</span>
                 <span className="font-mono font-medium">{dataset.maxRunsPerRequester}</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Access TTL</span>
+                <span className="text-muted-foreground">Session window</span>
                 <span className="font-mono font-medium">{dataset.accessTtlSeconds}s</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">TEE required</span>
-                <Badge variant={dataset.requireTEE ? "outline" : "secondary"} className="text-[10px] h-4">
-                  {dataset.requireTEE ? "Yes" : "No"}
-                </Badge>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Attestation</span>
+                <span className="text-muted-foreground">Proof required</span>
                 <Badge variant={dataset.requireResultAttestation ? "outline" : "secondary"} className="text-[10px] h-4">
-                  {dataset.requireResultAttestation ? "Required" : "Optional"}
+                  {dataset.requireResultAttestation ? "Yes" : "No"}
                 </Badge>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Access</span>
-                <span className="font-medium">{dataset.allowedRequesters.length === 0 ? "Open" : "Restricted"}</span>
+                <span className="text-muted-foreground">Researchers</span>
+                <span className="font-medium">{dataset.openRequesters ? "Open" : "Restricted"}</span>
               </div>
             </CardContent>
           </Card>

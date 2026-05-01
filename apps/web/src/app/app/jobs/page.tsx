@@ -12,20 +12,15 @@ export default function JobsPage() {
 
   return (
     <div className="flex flex-col min-h-full">
-      <AppTopbar title="My Jobs" />
+      <AppTopbar title="My Sessions" />
       <div className="flex-1 p-6 flex flex-col gap-4">
-        <p className="text-sm text-muted-foreground">{jobs.length} job{jobs.length !== 1 ? "s" : ""}</p>
+        <p className="text-sm text-muted-foreground">{jobs.length} training session{jobs.length !== 1 ? "s" : ""}</p>
 
         {/* Overview */}
         <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 px-4 py-3">
           <InfoIcon className="size-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            A job is a licensed fine-tuning run you initiated against a dataset in the catalog.
-            Each job locks <span className="text-foreground font-medium">lUSD escrow</span> upfront in the contract —
-            the amount covers the maximum epochs you requested at the dataset&apos;s royalty rate.
-            A 0G Compute node runs the training job against the encrypted data; when it completes the contract
-            settles royalties to the publisher for the exact epochs run and refunds any remainder to you.
-            Click any row to see the full on-chain lifecycle, event log, and escrow ledger for that job.
+            A training session is started when you request access to a dataset from the Marketplace. Your payment is locked securely upfront to cover the epochs you requested. The AI model trains on the encrypted data, royalties are paid to the owner, and any unused portion is refunded to you automatically. Click any row to see the full lifecycle and payment ledger.
           </p>
         </div>
 
@@ -34,13 +29,13 @@ export default function JobsPage() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="pl-6 text-xs">Job ID</TableHead>
+                  <TableHead className="pl-6 text-xs">Session ID</TableHead>
                   <TableHead className="text-xs">Dataset</TableHead>
                   <TableHead className="text-xs">Purpose</TableHead>
                   <TableHead className="text-xs">Provider</TableHead>
                   <TableHead className="text-xs text-center">Epochs</TableHead>
-                  <TableHead className="text-xs text-right">Escrow</TableHead>
-                  <TableHead className="text-xs">State</TableHead>
+                  <TableHead className="text-xs text-right">Payment locked</TableHead>
+                  <TableHead className="text-xs">Status</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>

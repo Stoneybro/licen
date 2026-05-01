@@ -54,18 +54,18 @@ export default async function DatasetDetailPage({ params }: { params: Promise<{ 
             {/* Jobs table */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Access Jobs ({datasetJobs.length})</CardTitle>
+                <CardTitle className="text-sm font-medium">Training Sessions ({datasetJobs.length})</CardTitle>
               </CardHeader>
               <CardContent className="p-0">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="pl-6 text-xs">Job ID</TableHead>
-                      <TableHead className="text-xs">Requester</TableHead>
+                      <TableHead className="pl-6 text-xs">Session ID</TableHead>
+                      <TableHead className="text-xs">Researcher</TableHead>
                       <TableHead className="text-xs">Purpose</TableHead>
                       <TableHead className="text-xs text-right">Epochs</TableHead>
-                      <TableHead className="text-xs text-right pr-6">Royalty</TableHead>
-                      <TableHead className="text-xs">State</TableHead>
+                      <TableHead className="text-xs text-right pr-6">Royalties</TableHead>
+                      <TableHead className="text-xs">Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -105,7 +105,7 @@ export default async function DatasetDetailPage({ params }: { params: Promise<{ 
               <CardHeader className="pb-3">
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-sm font-medium">Policy</CardTitle>
-                  <Badge variant="secondary" className="text-[10px] h-4">on-chain</Badge>
+                  <Badge variant="secondary" className="text-[10px] h-4">Active</Badge>
                 </div>
               </CardHeader>
               <CardContent className="flex flex-col gap-2 text-xs">
@@ -119,19 +119,15 @@ export default async function DatasetDetailPage({ params }: { params: Promise<{ 
                   <span className="font-mono font-medium">{dataset.royaltyPerEpoch} lUSD/epoch</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Min escrow</span>
-                  <span className="font-mono font-medium">{dataset.minEscrow} lUSD</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Max epochs/run</span>
+                  <span className="text-muted-foreground">Max epochs/session</span>
                   <span className="font-mono font-medium">{dataset.maxEpochsPerRun}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Max runs/requester</span>
+                  <span className="text-muted-foreground">Max sessions/researcher</span>
                   <span className="font-mono font-medium">{dataset.maxRunsPerRequester}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">TTL</span>
+                  <span className="text-muted-foreground">Session window</span>
                   <span className="font-mono font-medium">{dataset.accessTtlSeconds}s</span>
                 </div>
                 <div className="flex items-center justify-between">
@@ -140,15 +136,9 @@ export default async function DatasetDetailPage({ params }: { params: Promise<{ 
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">TEE required</span>
-                  <Badge variant={dataset.requireTEE ? "outline" : "secondary"} className="text-[10px] h-4">
-                    {dataset.requireTEE ? "Yes" : "No"}
-                  </Badge>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Attestation</span>
+                  <span className="text-muted-foreground">Proof required</span>
                   <Badge variant={dataset.requireResultAttestation ? "outline" : "secondary"} className="text-[10px] h-4">
-                    {dataset.requireResultAttestation ? "Required" : "Optional"}
+                    {dataset.requireResultAttestation ? "Yes" : "No"}
                   </Badge>
                 </div>
                 <Separator />
@@ -164,12 +154,12 @@ export default async function DatasetDetailPage({ params }: { params: Promise<{ 
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Access</span>
-                  <span className="font-medium">{dataset.allowedRequesters.length === 0 ? "Open" : "Restricted"}</span>
+                  <span className="text-muted-foreground">Researchers</span>
+                  <span className="font-medium">{dataset.openRequesters ? "Open" : "Restricted"}</span>
                 </div>
                 <Separator />
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Lifetime royalties</span>
+                  <span className="text-muted-foreground">Total Earnings</span>
                   <span className="font-mono font-medium">{dataset.lifetimeRoyalties} lUSD</span>
                 </div>
               </CardContent>

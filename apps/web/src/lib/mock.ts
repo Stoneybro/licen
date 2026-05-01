@@ -58,14 +58,12 @@ export type MockDataset = {
   description: string;
   allowedPurposeIds: string[];
   allowedRequesters: string[];
-  approvedProviders: string[];
+  openRequesters: boolean;
   royaltyPerEpoch: string;
-  minEscrow: string;
   maxEpochsPerRun: number;
   maxRunsPerRequester: number;
   accessTtlSeconds: number;
   policyExpiry: string;
-  requireTEE: boolean;
   requireResultAttestation: boolean;
   active: boolean;
   lifetimeRoyalties: string;
@@ -84,14 +82,12 @@ export const MOCK_DATASETS: MockDataset[] = [
     description: "Curated biomedical literature and clinical trial summaries, 14GB encrypted.",
     allowedPurposeIds: ["0xabc1", "0xabc2", "0xabc4"],
     allowedRequesters: [],
-    approvedProviders: ["0xprov1", "0xprov2"],
+    openRequesters: true,
     royaltyPerEpoch: "50",
-    minEscrow: "200",
     maxEpochsPerRun: 20,
     maxRunsPerRequester: 5,
     accessTtlSeconds: 86400,
     policyExpiry: "2026-12-31T00:00:00Z",
-    requireTEE: true,
     requireResultAttestation: true,
     active: true,
     lifetimeRoyalties: "12,400",
@@ -106,14 +102,12 @@ export const MOCK_DATASETS: MockDataset[] = [
     description: "Global climate sensor readings and satellite imagery embeddings, 8GB.",
     allowedPurposeIds: ["0xabc1", "0xabc5"],
     allowedRequesters: [],
-    approvedProviders: ["0xprov1"],
+    openRequesters: true,
     royaltyPerEpoch: "30",
-    minEscrow: "150",
     maxEpochsPerRun: 10,
     maxRunsPerRequester: 3,
     accessTtlSeconds: 43200,
     policyExpiry: "2026-06-30T00:00:00Z",
-    requireTEE: false,
     requireResultAttestation: false,
     active: true,
     lifetimeRoyalties: "5,880",
@@ -128,14 +122,12 @@ export const MOCK_DATASETS: MockDataset[] = [
     description: "50-language parallel corpus for multilingual model fine-tuning, 22GB.",
     allowedPurposeIds: ["0xabc1", "0xabc2", "0xabc3"],
     allowedRequesters: [],
-    approvedProviders: ["0xprov1", "0xprov2", "0xprov3"],
+    openRequesters: true,
     royaltyPerEpoch: "80",
-    minEscrow: "400",
     maxEpochsPerRun: 15,
     maxRunsPerRequester: 10,
     accessTtlSeconds: 172800,
     policyExpiry: "2027-03-31T00:00:00Z",
-    requireTEE: true,
     requireResultAttestation: true,
     active: true,
     lifetimeRoyalties: "48,320",
@@ -150,14 +142,12 @@ export const MOCK_DATASETS: MockDataset[] = [
     description: "Open-source repository commit data across 500k projects, 31GB.",
     allowedPurposeIds: ["0xabc1", "0xabc3"],
     allowedRequesters: ["0x4f3a8b2c1d9e6f7a0b5c3d2e1f8a9b4c5d6e7f80"],
-    approvedProviders: ["0xprov2"],
+    openRequesters: false,
     royaltyPerEpoch: "60",
-    minEscrow: "300",
     maxEpochsPerRun: 8,
     maxRunsPerRequester: 2,
     accessTtlSeconds: 28800,
     policyExpiry: "2026-09-30T00:00:00Z",
-    requireTEE: false,
     requireResultAttestation: true,
     active: true,
     lifetimeRoyalties: "8,760",

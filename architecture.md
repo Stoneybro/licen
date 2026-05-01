@@ -95,27 +95,30 @@ Each training access request creates a unique `jobId` bound to:
 
 ## 6) Policy Schema v1
 
-## 6.1 On-chain policy fields (authoritative)
+## 6.1 On-chain policy fields (authoritative, source: DataPolicy.sol)
 
-- `datasetRoot: bytes32`
-- `owner: address`
-- `manifestHash: bytes32`
+The `Policy` struct in `DataPolicy.sol` defines the canonical on-chain fields:
 
-- `allowedPurposeIds: bytes32[]`
-- `allowedRequesters: address[]` (optional; empty can mean open policy)
-- `approvedProviders: address[]`
+- `datasetRoot: bytes32` — unique identifier derived from the encrypted dataset's Merkle root
+- `owner: address` — royalty recipient
+- `manifestHash: bytes32` — hash of the off-chain policy manifest (integrity anchor)
 
-- `royaltyPerEpoch: uint256`
-- `minEscrow: uint256`
-- `maxEpochsPerRun: uint32`
-- `maxRunsPerRequester: uint32`
+- `royaltyPerEpoch: uint256` — cost per epoch of training
+- `maxEpochsPerRun: uint32` — epoch cap per training session
+- `maxRunsPerRequester: uint32` — lifetime session cap per researcher
 
-- `accessTtlSeconds: uint64`
-- `policyExpiry: uint64`
+- `accessTtlSeconds: uint64` — session validity window after grant
+- `policyExpiry: uint64` — unix timestamp after which no new access can be requested
 
-- `requireTEE: bool`
-- `requireResultAttestation: bool`
-- `active: bool`
+- `requireResultAttestation: bool` — whether completion proof is required
+- `openRequesters: bool` — if `true`, any wallet can request; if `false`, must be in the `allowedRequesters` mapping
+- `active: bool` — whether the policy is currently accepting requests
+
+Separate mappings (not in the struct):
+- `allowedPurposeIds: mapping(bytes32 => mapping(bytes32 => bool))` — whitelisted training purposes
+- `allowedRequesters: mapping(bytes32 => mapping(address => bool))` — whitelisted requester wallets (consulted only when `openRequesters = false`)
+
+> **Removed fields (legacy):** `requireTEE`, `minEscrow`, and `approvedProviders` are not part of the current contract. Minimum escrow is computed as `royaltyPerEpoch × requestedEpochs` at request time. Provider enforcement is handled by the backend wallet constraint (`onlyBackend` modifier).
 
 ### 6.2 Off-chain policy manifest
 

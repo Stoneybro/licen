@@ -17,7 +17,7 @@ function getPurposeLabel(id: string): string {
 export default function CatalogPage() {
   return (
     <div className="flex flex-col min-h-full">
-      <AppTopbar title="Catalog" />
+      <AppTopbar title="Browse Datasets" />
       <div className="flex-1 p-6 flex flex-col gap-4">
         <div className="flex items-center justify-between">
           <p className="text-sm text-muted-foreground">{MOCK_DATASETS.length} datasets available</p>
@@ -27,13 +27,7 @@ export default function CatalogPage() {
         <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 px-4 py-3">
           <InfoIcon className="size-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            The catalog lists all datasets with an active on-chain policy.
-            Each dataset has a <span className="text-foreground font-medium">DataPolicy</span> deployed by its owner
-            that defines the royalty rate, allowed training purposes, provider requirements, and epoch caps.
-            Pick a dataset, review its terms, and click <span className="text-foreground font-medium">Request access</span> to
-            start the escrow flow. Your lUSD is locked upfront, the training job runs on 0G Compute,
-            and royalties settle automatically when the job completes — unused escrow is refunded to you.
-            Datasets you own show as <span className="text-foreground font-medium">You own this</span> and cannot be requested.
+            Browse datasets available for AI training. Each one is published by its owner with specific usage rules and a royalty rate. Click <span className="text-foreground font-medium">Start training</span> to request access — your payment is locked securely upfront and released to the owner only once your training session completes.
           </p>
         </div>
 
@@ -54,9 +48,6 @@ export default function CatalogPage() {
                       ) : (
                         <Badge variant="secondary" className="text-[10px] h-4">Paused</Badge>
                       )}
-                      {d.requireTEE && (
-                        <Badge variant="outline" className="text-[10px] h-4">TEE Required</Badge>
-                      )}
                     </div>
                   </div>
                   <CardDescription className="text-xs mt-1 line-clamp-2">{d.description}</CardDescription>
@@ -67,15 +58,15 @@ export default function CatalogPage() {
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div>
                       <p className="text-muted-foreground">Rate</p>
-                      <p className="font-mono font-medium">{d.royaltyPerEpoch} lUSD/ep</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Min escrow</p>
-                      <p className="font-mono font-medium">{d.minEscrow} lUSD</p>
+                      <p className="font-mono font-medium">{d.royaltyPerEpoch} lUSD/epoch</p>
                     </div>
                     <div>
                       <p className="text-muted-foreground">Max epochs</p>
-                      <p className="font-mono font-medium">{d.maxEpochsPerRun}/run</p>
+                      <p className="font-mono font-medium">{d.maxEpochsPerRun}/session</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground">Max sessions</p>
+                      <p className="font-mono font-medium">{d.maxRunsPerRequester}/researcher</p>
                     </div>
                   </div>
 
@@ -95,7 +86,7 @@ export default function CatalogPage() {
 
                   <div className="flex items-center justify-between mt-auto pt-2">
                     <span className="text-xs text-muted-foreground">
-                      {d.allowedRequesters.length === 0 ? "Open policy" : "Restricted access"}
+                      {d.openRequesters ? "Open to all" : "Restricted access"}
                     </span>
                     <div className="flex items-center gap-2">
                       <Button asChild size="sm" variant="ghost" className="h-7 text-xs">
@@ -110,12 +101,12 @@ export default function CatalogPage() {
                         </Button>
                       ) : !d.active ? (
                         <Button size="sm" variant="outline" className="h-7 text-xs" disabled>
-                          Paused
+                          Unavailable
                         </Button>
                       ) : (
                         <Button asChild size="sm" className="h-7 text-xs">
                           <Link href={`/app/catalog/${d.datasetRoot}/request`}>
-                            Request access
+                            Start training
                           </Link>
                         </Button>
                       )}
