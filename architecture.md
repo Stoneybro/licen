@@ -5,10 +5,10 @@
 LICEN is a decentralized protocol for programmable AI data licensing on the 0G ecosystem.
 
 The system enables dataset owners to:
-- Publish encrypted datasets.
+- Publish encrypted datasets securely.
 - Attach code-enforceable usage policies.
-- Gate training access through smart contracts.
-- Automatically settle royalties when licensed training jobs complete.
+- Gate training access through smart contracts and access control networks (Lit Protocol).
+- Automatically settle royalties when licensed training sessions complete.
 
 This document captures the current architecture decisions, tradeoffs, and implementation plans.
 
@@ -25,22 +25,24 @@ This document captures the current architecture decisions, tradeoffs, and implem
 
 ## 3) High-Level System Architecture
 
-LICEN maps directly to 0G primitives:
+LICEN maps directly to decentralized primitives:
 
-1. Dataset Upload -> 0G Storage
-2. Policy Enforcement -> DataPolicy smart contract on 0G Chain
-3. Licensed Training Execution -> 0G Compute (fine-tuning path)
-4. Royalty Settlement -> Smart contract state transition + payout
+1. **Dataset Storage**: 0G Storage (encrypted blob).
+2. **Policy Enforcement**: `DataPolicy` smart contract on 0G Chain.
+3. **Key Management**: Lit Protocol (secure KMS via Access Control Conditions).
+4. **Licensed Training Execution**: 0G Compute (hardware TEE enclaves like Intel TDX/AMD SEV-SNP).
+5. **Orchestration & Indexing**: Envio Indexer + Backend Orchestrator.
+6. **Royalty Settlement**: Smart contract state transition based on compute attestation.
 
 ### 3.1 Component Map
 
 - **Publisher App/UI**: dataset owner uploads encrypted data, sets policy, monitors revenue.
-- **Researcher App/UI**: requests licensed access and submits training intent.
+- **Researcher App/UI**: browses the Marketplace, requests licensed access, and submits training intent.
 - **DataPolicy Contract**: policy authority, access gate, escrow, settlement rules.
-- **Wrapper/Orchestrator Service**: bridges contract events and 0G Compute job lifecycle.
-- **0G Storage**: stores encrypted dataset and policy manifest.
-- **0G Compute**: runs fine-tuning jobs in approved environment (TEE/attested where available).
-- **Indexer/Backend DB (optional but recommended)**: queryable lifecycle state for dashboard and ops.
+- **Key Network (Lit Protocol)**: holds dataset decryption keys, releasing them only to secure enclaves after on-chain payment verification.
+- **Orchestrator & Indexer (Envio)**: reads 0G Chain events, updates the UI Marketplace, and dispatches training jobs to 0G Compute.
+- **0G Storage**: stores encrypted dataset and public policy manifest.
+- **0G Compute**: runs fine-tuning jobs in attested secure environments.
 
 ---
 
@@ -49,21 +51,15 @@ LICEN maps directly to 0G primitives:
 ### 4.1 What we can enforce strongly
 
 - Access is granted only after on-chain policy checks and payment/escrow.
-- Training execution can be restricted to approved compute providers.
-- Job lifecycle and payout can be tied to verifiable events/attestations.
-- Every granted/settled access can be auditable by wallet/job ID.
+- Raw dataset keys are never exposed to humans (client-side encryption -> Lit Protocol -> TEE decryption).
+- Training execution is restricted to attested compute environments.
+- Job lifecycle and payout are tied to hardware-verified attestations (verifying epoch counts).
+- Every granted/settled access is auditable on an immutable ledger.
 
-### 4.2 What we cannot perfectly enforce (without advanced cryptography/legal controls)
+### 4.2 What we cannot perfectly enforce
 
 - True human intent behind declared purpose (for example, proving a user is genuinely doing "neural research").
-- Absolute prevention of all off-platform misuse in adversarial real-world settings.
-
-### 4.3 Positioning statement
-
-LICEN enforces usage through a combination of:
-- technical controls (policy gate + approved compute path + controlled key release),
-- economic deterrence (escrow, penalties, revocation), and
-- accountability (immutable logs and auditable receipts).
+- Absolute prevention of all off-platform misuse in highly adversarial environments.
 
 ---
 
@@ -72,53 +68,45 @@ LICEN enforces usage through a combination of:
 ### 5.1 Dataset Identity
 
 - Dataset is encrypted client-side before upload.
+- Encrypted key is stored on Lit Protocol.
 - Merkle root from uploaded encrypted blob becomes canonical dataset identifier (`datasetRoot`).
 - Contract references dataset by `datasetRoot`.
 
 ### 5.2 Policy Identity
 
-- Rich policy stored off-chain as signed JSON manifest in 0G Storage.
+- Rich policy stored off-chain as a JSON manifest in 0G Storage.
 - Hash of manifest (`manifestHash`) anchored on-chain.
 - On-chain stores only enforcement-critical fields.
 
-### 5.3 Job Identity
+### 5.3 Training Session Identity
 
-Each training access request creates a unique `jobId` bound to:
+Each training access request creates a unique `sessionId` (formerly `jobId`) bound to:
 - `datasetRoot`
 - requester wallet
-- provider
 - purpose ID
 - requested epochs
-- expiry/TTL
+- session duration (TTL)
 
 ---
 
 ## 6) Policy Schema v1
 
-## 6.1 On-chain policy fields (authoritative, source: DataPolicy.sol)
+### 6.1 On-chain policy fields (authoritative, source: DataPolicy.sol)
 
 The `Policy` struct in `DataPolicy.sol` defines the canonical on-chain fields:
 
-- `datasetRoot: bytes32` — unique identifier derived from the encrypted dataset's Merkle root
+- `datasetRoot: bytes32` — unique identifier
 - `owner: address` — royalty recipient
 - `manifestHash: bytes32` — hash of the off-chain policy manifest (integrity anchor)
 
+**Access Limits & Pricing:**
 - `royaltyPerEpoch: uint256` — cost per epoch of training
 - `maxEpochsPerRun: uint32` — epoch cap per training session
 - `maxRunsPerRequester: uint32` — lifetime session cap per researcher
-
-- `accessTtlSeconds: uint64` — session validity window after grant
+- `ttlHours: uint32` — session validity window after grant
 - `policyExpiry: uint64` — unix timestamp after which no new access can be requested
 
-- `requireResultAttestation: bool` — whether completion proof is required
-- `openRequesters: bool` — if `true`, any wallet can request; if `false`, must be in the `allowedRequesters` mapping
-- `active: bool` — whether the policy is currently accepting requests
-
-Separate mappings (not in the struct):
-- `allowedPurposeIds: mapping(bytes32 => mapping(bytes32 => bool))` — whitelisted training purposes
-- `allowedRequesters: mapping(bytes32 => mapping(address => bool))` — whitelisted requester wallets (consulted only when `openRequesters = false`)
-
-> **Removed fields (legacy):** `requireTEE`, `minEscrow`, and `approvedProviders` are not part of the current contract. Minimum escrow is computed as `royaltyPerEpoch × requestedEpochs` at request time. Provider enforcement is handled by the backend wallet constraint (`onlyBackend` modifier).
+*Note: Legacy fields like `minEscrow`, `requireTEE`, and `approvedProviders` have been removed to streamline the architecture around modern attestations and dynamic escrow calculation (`royaltyPerEpoch` * `requestedEpochs`).*
 
 ### 6.2 Off-chain policy manifest
 
@@ -129,271 +117,72 @@ Required fields:
 - `version: string` (policy/manifest version)
 - `title: string`
 - `description: string`
-- `datasetRoot: bytes32` (autogenerated from encrypted data)
-- `ownerAddress: address` (autofilled from connected wallet)
-- `createdAt: ISO datetime` (autogenerated)
+- `datasetRoot: bytes32`
+- `ownerAddress: address`
+- `createdAt: ISO datetime`
 
-Optional publisher-defined fields:
-- `legalText`
-- `usageTaxonomy`
-- `taskConstraints`
-- `complianceNotes`
-- `attribution`
-- `derivativeRights`
-- `ownerSignature` (optional in hackathon scope)
-
-Design rule:
-- Do not duplicate on-chain policy parameters inside the off-chain manifest.
-- On-chain remains authoritative for enforcement fields; off-chain remains authoritative for human/audit policy context.
+Optional publisher-defined fields (Advanced Details):
+- `legalText`, `usageTaxonomy`, `taskConstraints`, `complianceNotes`, `attribution`, `derivativeRights`.
 
 ---
 
-## 7) Policy Types and Explanations
+## 7) Pricing Semantics: Epochs and Runs
 
-- **Purpose Policy**: allows only declared use classes (for example `NEURAL_RESEARCH`) and creates an auditable intent trail.
-- **Requester Policy**: restricts who can request access (wallet/org allowlist).
-- **Compute Provider Policy**: limits execution to approved providers/environments.
-- **TEE/Attestation Policy**: requires attested secure execution/proof metadata.
-- **Model/Task Policy**: restricts permitted model families or job templates.
-- **Usage Cap Policy**: sets limits on epochs per run, runs per requester, and request rate.
-- **Time Policy**: defines access TTL and policy expiry.
-- **Economic Policy**: sets royalties, escrow minimums, and settlement/refund behavior.
-- **Output/Egress Policy**: restricts what artifacts can leave compute.
-- **Compliance/Region Policy**: jurisdiction and governance constraints.
-- **Attribution Policy**: requires provenance/citation records.
-- **Derivative Rights Policy**: defines if fine-tuned outputs are transferable/commercializable.
-
----
-
-## 8) Pricing Semantics: Epochs and Runs
-
-- **Run**: one training job execution.
+- **Run/Session**: one training execution.
 - **Epoch**: one full pass through the dataset during a run.
 
-Example:
-- 3 runs x 5 epochs each = 15 total epochs.
+### 7.1 Cost model
+- Escrow required: `royaltyPerEpoch * requestedEpochs`
 
-### 8.1 Cost model
-
-Per run baseline:
-- `cost = royaltyPerEpoch * epochs`
-
-Optional:
-- `+ baseRunFee`
-
-### 8.2 Measurement model (recommended)
-
-Track both:
-- `requestedEpochs` (from access request),
-- `actualEpochs` (from job completion metadata/attestation).
-
-Recommended settlement mode:
-- escrow by requested epochs,
-- settle by actual epochs completed,
-- refund difference when applicable.
-
-This is fairer and more defensible than charging only by requested value.
+### 7.2 Measurement and Settlement
+- Track both `requestedEpochs` and `actualEpochs` (from 0G Compute TEE attestation).
+- Settlement mode: escrow by requested epochs, settle by actual epochs completed, refund the difference.
 
 ---
 
-## 9) End-to-End Flow
+## 8) End-to-End Flow
 
-## 9.1 Phase 1: Encrypt + Upload
-
+### 8.1 Phase 1: Publish (Complete)
 1. Publisher encrypts dataset client-side.
-2. Upload encrypted blob to 0G Storage.
-3. Generate `datasetRoot` (Merkle root).
-4. Store policy manifest in 0G Storage; anchor `manifestHash` on-chain.
+2. Dataset decryption key is provisioned to Lit Protocol.
+3. Upload encrypted blob + public manifest to 0G Storage.
+4. Anchor `datasetRoot`, `manifestHash`, and policy tuple to `DataPolicy` contract.
 
-## 9.2 Phase 2: Policy Deployment
+### 8.2 Phase 2: Read & Index
+1. Envio indexer detects `registerDataset` events.
+2. Backend hydrates the frontend Marketplace by combining on-chain data with JSON manifests from 0G Storage.
 
-1. Deploy `DataPolicy` contract on 0G Chain.
-2. Register enforcement fields for dataset.
-3. Activate policy.
+### 8.3 Phase 3: Compute & Research
+1. Researcher requests access via UI and escrows tokens.
+2. Backend Orchestrator detects escrow event.
+3. Orchestrator dispatches a compute job to a 0G Compute node.
+4. 0G Compute node pulls encrypted data from 0G Storage.
+5. Node retrieves decryption key from Lit Protocol (satisfying the ACC).
+6. Training runs securely inside a TEE enclave.
+7. Node generates an Attestation Report and model weights.
 
-## 9.3 Phase 3: Licensed Training via Wrapper + 0G Compute
-
-1. Researcher submits training request (purpose, epochs, provider, model).
-2. Wrapper calls `requestAccess(...)` with payment/escrow.
-3. Contract validates policy constraints and emits grant event with `jobId`.
-4. Wrapper provisions compute job in approved environment.
-5. Data is decrypted only for job-scoped session in controlled runtime.
-6. Fine-tuning runs on 0G Compute.
-7. Wrapper receives completion metadata/attestation.
-8. Wrapper calls contract completion function.
-9. Contract settles royalty and closes job state.
-
-## 9.4 Phase 4: Settlement + Audit
-
-- Payouts and state transitions are queryable on-chain.
-- Dashboard can show request history, job outcomes, and royalties by dataset.
+### 8.4 Phase 4: Audit & Settlement
+1. Attestation report is submitted on-chain or via Orchestrator.
+2. Contract verifies the TEE signature and actual epochs used.
+3. Royalties are paid to the publisher; unspent escrow is refunded to the researcher.
+4. Publisher views usage in the Audit Dashboard.
 
 ---
 
-## 10) Wrapper Architecture (Phase 3 focus)
+## 9) Orchestrator & Indexer Architecture
 
-The wrapper is the orchestration layer between contract and compute.
+The Backend Orchestrator and Envio Indexer replace the generic "wrapper".
 
-### 10.1 Why wrapper exists
-
-- Enforces consistent lifecycle rules.
-- Prevents direct bypass of policy flow.
-- Bridges blockchain events and compute operations.
-- Provides observability, retries, and timeout handling.
-
-### 10.2 Wrapper modules
-
-- **API Layer**: receives job requests.
-- **Policy Adapter**: contract interaction (`requestAccess`, complete/fail/timeout actions).
-- **Compute Adapter**: submits and tracks 0G fine-tuning jobs.
-- **State Store**: persistent lifecycle status and metadata.
-- **Event Processor**: reacts to contract events and compute callbacks.
-
-### 10.3 Wrapper responsibilities
-
-- Validate request payload and policy-compatible parameters.
-- Create/track `jobId` lifecycle.
-- Submit compute job only after on-chain grant.
-- Collect signed completion metadata.
-- Trigger settlement/refund path.
-- Expose status to UI and audit dashboard.
+- **Envio Indexer**: Extremely fast, EVM-compatible indexer to populate the Marketplace and track escrow/settlement events.
+- **Backend Orchestrator**: 
+  - Listens to Envio webhooks/events.
+  - Dispatches tasks to 0G Compute.
+  - Manages the asynchronous flow of training sessions.
 
 ---
 
-## 11) Job State Machine (recommended)
+## 10) Security and Reliability Decisions
 
-States:
-- `Requested`
-- `Granted`
-- `Running`
-- `Completed`
-- `Failed`
-- `TimedOut`
-- `Refunded`
-
-Allowed transitions:
-- `Requested -> Granted` (policy checks + escrow pass)
-- `Granted -> Running` (compute accepted + optional attestation verified)
-- `Running -> Completed` (successful run + completion verification)
-- `Running -> Failed` (execution failure)
-- `Granted/Running -> TimedOut` (TTL exceeded)
-- `Failed/TimedOut -> Refunded` (according to refund policy)
-
-Invariant goals:
-- No double settlement.
-- No replay on completion callback.
-- One terminal state per job.
-
----
-
-## 12) Smart Contract Function Surface (v1)
-
-Suggested functions:
-- `requestAccess(datasetRoot, purposeId, provider, requestedEpochs, termsHash)` payable
-- `confirmTrainingComplete(jobId, actualEpochs, resultHash, attestationRef)`
-- `markJobFailed(jobId, reasonCode)`
-- `timeoutJob(jobId)`
-- `refund(jobId)`
-- `updatePolicy(...)` (owner/admin gated)
-- `pausePolicy()` / `resumePolicy()`
-
-Suggested events:
-- `AccessRequested`
-- `AccessGranted`
-- `JobStarted`
-- `JobCompleted`
-- `JobFailed`
-- `JobTimedOut`
-- `RoyaltySettled`
-- `RefundIssued`
-
----
-
-## 13) Security and Reliability Decisions
-
-- Never expose raw decryption key to arbitrary client wallets.
-- Use short-lived, job-scoped decryption capability.
-- Bind completion callbacks to known provider/job mapping.
-- Include nonce/replay protection in settlement path.
-- Use strict role checks for policy updates.
-- Add timeout and refund logic to avoid stuck escrow.
-- Persist full audit metadata (tx hash, job ID, timestamps, requested/actual epochs).
-
----
-
-## 14) MVP vs Stretch Scope
-
-## 14.1 MVP (must ship)
-
-- Encrypted dataset upload + root anchoring.
-- DataPolicy contract with purpose/provider checks, epochs caps, escrow, settlement.
-- Wrapper orchestration for request -> run -> complete.
-- 0G Compute fine-tuning integration.
-- Minimal lifecycle UI and royalty visibility.
-
-### 14.2 Stretch goals
-
-- INFT integration for subscription-like usage rights and transferability.
-- Rich compliance modules.
-- Advanced dispute/slashing mechanisms.
-- Cross-dataset batching and portfolio licensing.
-
-### 14.3 Out of scope (current phase)
-
-- Full ZK proofs of correct training over private data.
-- Perfect prevention of all exfiltration/off-platform misuse.
-- Global legal compliance automation.
-
----
-
-## 15) Two-Week Delivery Plan
-
-### Week 1: Core flow
-
-- Finalize policy schema and state machine.
-- Implement contract v1 and deploy to testnet.
-- Implement storage upload + dataset/policy registration.
-- Build wrapper happy path and completion settlement.
-- Ship minimal end-to-end UI.
-
-### Week 2: Hardening and polish
-
-- Add failure paths (timeout, failed job, refund flow).
-- Add event indexing + dashboard.
-- Expand tests for contract and wrapper integration.
-- Improve UX and demo script reliability.
-- Add stretch feature only if core reliability is complete.
-
----
-
-## 16) Open Decisions to Track
-
-- Source of truth for runtime state (contract-only vs hybrid with indexer DB).
-- Attestation verification mechanism details and trust anchor.
-- Refund semantics for partial completion and early aborts.
-- Whether `allowedRequesters` is mandatory or optional in launch version.
-- Exact key management implementation in wrapper/compute runtime.
-
----
-
-## 17) Demo Readiness Criteria
-
-Project is demo-ready when it can consistently show:
-- Publisher uploads encrypted dataset and sets policy.
-- Researcher requests licensed training for allowed purpose.
-- Contract enforces checks and locks escrow.
-- Wrapper starts and tracks compute job.
-- Completion triggers royalty settlement on-chain.
-- UI displays full lifecycle with verifiable transaction/job references.
-
----
-
-## 18) Summary
-
-LICEN’s architecture uses a contract-centric policy gate, a wrapper-controlled compute lifecycle, and an auditable payout model to make AI dataset licensing programmable and enforceable in practice.
-
-The design intentionally prioritizes strong enforceability where feasible today, explicit trust boundaries, and a clear upgrade path from hackathon MVP to production-grade system.
-
-
-
-
+- **Zero-Knowledge Keys**: Raw decryption keys never hit the client during the research phase. Lit Protocol + 0G TEE ensures hardware-enforced privacy.
+- **Hardware Attestation**: Settlement relies purely on cryptographic proofs from secure enclaves, preventing oracle manipulation.
+- **Escrow-First**: Compute cannot be provisioned without on-chain payment.

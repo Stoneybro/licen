@@ -4,6 +4,9 @@ export const PUBLISH_PURPOSES = [
   "COMMERCIAL_R_AND_D",
   "BIOMEDICAL",
   "CLIMATE_SCIENCE",
+  "FINANCIAL_MODELING",
+  "GENERATIVE_ART",
+  "AUTONOMOUS_SYSTEMS",
 ] as const;
 
 export type PublishPurpose = (typeof PUBLISH_PURPOSES)[number];

@@ -35,7 +35,7 @@ function toUint32(value: number): number {
 
 export function getDataPolicyAddress(): Address {
   const address =
-    process.env.NEXT_PUBLIC_OG_DATA_POLICY_ADDRESS ?? "0x6c6b5c86752D8B5330Cb055A967E2f6253D09195";
+    process.env.NEXT_PUBLIC_OG_DATA_POLICY_ADDRESS ?? "0x6Fe8B5E16df9E0Aaf5E3dDf0E39BFA66dA25bD0b";
   if (!isAddress(address)) {
     throw new Error("NEXT_PUBLIC_OG_DATA_POLICY_ADDRESS must be a valid EVM address");
   }

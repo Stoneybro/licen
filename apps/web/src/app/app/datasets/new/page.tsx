@@ -2,36 +2,27 @@
 
 import { useEffect, useState } from "react";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
-import { CircleCheckBig, Plus, ShieldCheck, Sparkles } from "lucide-react";
+import { 
+  CircleCheckBig, Plus, ShieldCheck, 
+  BrainCircuit, GraduationCap, Building2, Dna, Leaf,
+  UploadCloud, Info, DollarSign,
+  Repeat, Users, Clock, CalendarX, X, CheckCircle2, Lock,
+  FileJson, LineChart, Palette, Cpu,
+  Copy, Download, Check
+} from "lucide-react";
 import { encodeFunctionData, isAddress, type Address, type Hex } from "viem";
 import { AppTopbar } from "@/components/app/app-topbar";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuGroup,
-  DropdownMenuLabel,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldGroup,
-  FieldLabel,
-  FieldLegend,
-  FieldSet,
-} from "@/components/ui/field";
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
+import { cn } from "@/lib/utils";
+
 import {
   PUBLISH_PURPOSES,
   type PublishPurpose,
@@ -47,32 +38,32 @@ import { buildRegisterDatasetArgs, DATA_POLICY_ABI, getDataPolicyAddress } from 
 const OPTIONAL_MANIFEST_SECTIONS = [
   {
     id: "legalText",
-    label: "Human-readable legal/policy text",
+    label: "Legal Terms",
     placeholder: "Describe governing legal terms in plain language.",
   },
   {
     id: "usageTaxonomy",
-    label: "Domain taxonomy and allowed/prohibited use classes",
+    label: "Usage Taxonomy",
     placeholder: "Capture allowed and prohibited use classes.",
   },
   {
     id: "taskConstraints",
-    label: "Model/task constraints",
+    label: "Task Constraints",
     placeholder: "Define task, model family, or deployment constraints.",
   },
   {
     id: "complianceNotes",
-    label: "Compliance/region notes",
+    label: "Compliance Notes",
     placeholder: "Add jurisdiction or compliance guidance.",
   },
   {
     id: "attribution",
-    label: "Attribution requirements",
+    label: "Attribution Rules",
     placeholder: "Specify required attribution language and placement.",
   },
   {
     id: "derivativeRights",
-    label: "Derivative/commercial rights",
+    label: "Derivative Rights",
     placeholder: "Explain derivative and commercial usage rights.",
   },
 ] as const;
@@ -87,6 +78,17 @@ const INITIAL_OPTIONAL_SECTION_VALUES: OptionalManifestSectionValues = {
   complianceNotes: "",
   attribution: "",
   derivativeRights: "",
+};
+
+const PURPOSE_META: Record<string, { label: string; description: string; icon: any }> = {
+  NEURAL_RESEARCH: { label: "Neural Network Research", description: "Training and fine-tuning neural architectures", icon: BrainCircuit },
+  ACADEMIC: { label: "Academic Research", description: "Non-commercial research by educational institutions", icon: GraduationCap },
+  COMMERCIAL_R_AND_D: { label: "Commercial R&D", description: "Product development and commercial applications", icon: Building2 },
+  BIOMEDICAL: { label: "Biomedical Science", description: "Healthcare, genomics, and drug discovery models", icon: Dna },
+  CLIMATE_SCIENCE: { label: "Climate & Earth Science", description: "Meteorology and environmental modeling", icon: Leaf },
+  FINANCIAL_MODELING: { label: "Financial Modeling", description: "Market analysis and algorithmic trading models", icon: LineChart },
+  GENERATIVE_ART: { label: "Generative Art", description: "Image, video, and audio generation models", icon: Palette },
+  AUTONOMOUS_SYSTEMS: { label: "Autonomous Systems", description: "Robotics, self-driving, and agentic AI", icon: Cpu },
 };
 
 async function sha256Hex(value: string) {
@@ -104,7 +106,6 @@ function togglePurpose(
   if (enabled) {
     return previous.includes(purpose) ? previous : [...previous, purpose];
   }
-
   return previous.filter((item) => item !== purpose);
 }
 
@@ -122,10 +123,19 @@ function formatBytes(bytes: number) {
   return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
 }
 
+const SECTIONS = [
+  { id: "details", label: "Dataset Details" },
+  { id: "purposes", label: "Allowed Purposes" },
+  { id: "policy", label: "Access Policy" },
+  { id: "advanced", label: "Advanced Details" },
+];
+
 export default function NewDatasetPage() {
   const { user } = usePrivy();
   const { wallets } = useWallets();
   const walletAddress = user?.wallet?.address;
+
+  const [activeSection, setActiveSection] = useState<string>("details");
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -139,7 +149,8 @@ export default function NewDatasetPage() {
   const [royaltyPerEpoch, setRoyaltyPerEpoch] = useState<number>(10);
   const [maxEpochsPerRun, setMaxEpochsPerRun] = useState<number>(10);
   const [maxRunsPerRequester, setMaxRunsPerRequester] = useState<number>(1);
-  const [ttlHours, setTtlHours] = useState<number>(720);
+  const [ttlValue, setTtlValue] = useState<number>(30);
+  const [ttlUnit, setTtlUnit] = useState<"hours" | "days" | "weeks">("days");
   const [policyExpiry, setPolicyExpiry] = useState<string>("");
   const [noPolicyExpiry, setNoPolicyExpiry] = useState(true);
 
@@ -151,6 +162,26 @@ export default function NewDatasetPage() {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [status, setStatus] = useState<PublishStatusResponse["status"] | null>(null);
   const [encryptionKeyData, setEncryptionKeyData] = useState<{ datasetRoot: string; ivHex: string; keyHex: string } | null>(null);
+  
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const sections = SECTIONS.map(s => document.getElementById(s.id)).filter(Boolean) as HTMLElement[];
+      const scrollPosition = window.scrollY + 150; // Offset for sticky headers
+      
+      let current = sections[0]?.id || "details";
+      for (const section of sections) {
+        if (section.offsetTop <= scrollPosition) {
+          current = section.id;
+        }
+      }
+      setActiveSection(current);
+    };
+
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
 
   useEffect(() => {
     if (!requestId) return;
@@ -195,6 +226,25 @@ export default function NewDatasetPage() {
     };
   }, [requestId]);
 
+  const handleCopy = () => {
+    if (encryptionKeyData) {
+      navigator.clipboard.writeText(JSON.stringify(encryptionKeyData, null, 2));
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleDownloadKeys = () => {
+    if (!encryptionKeyData) return;
+    const blob = new Blob([JSON.stringify(encryptionKeyData, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `dataset-keys-${encryptionKeyData.datasetRoot.slice(0, 8)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const handlePublish = async () => {
     setErrorMessage(null);
 
@@ -204,18 +254,22 @@ export default function NewDatasetPage() {
     }
     if (!selectedFile) {
       setErrorMessage("Please select a dataset file.");
+      document.getElementById("details")?.scrollIntoView({ behavior: "smooth" });
       return;
     }
     if (!title) {
       setErrorMessage("Please provide a title.");
+      document.getElementById("details")?.scrollIntoView({ behavior: "smooth" });
       return;
     }
     if (!description) {
       setErrorMessage("Please provide a description.");
+      document.getElementById("details")?.scrollIntoView({ behavior: "smooth" });
       return;
     }
     if (allowedPurposeIds.length === 0) {
       setErrorMessage("Select at least one allowed purpose.");
+      document.getElementById("purposes")?.scrollIntoView({ behavior: "smooth" });
       return;
     }
 
@@ -224,15 +278,16 @@ export default function NewDatasetPage() {
       setRequestId(null);
       setPublishing(true);
       setPublishProgress(10);
+      window.scrollTo({ top: 0, behavior: "smooth" });
 
       // Step 1: Encrypt
-      setPublishingStep("Encrypting dataset client-side...");
+      setPublishingStep("Securing dataset on your device...");
       setPublishProgress(20);
       const encrypted = await encryptDatasetFile(selectedFile);
       setEncryptionKeyData(null);
 
       // Step 2: Upload encrypted dataset to 0G Storage
-      setPublishingStep("Uploading encrypted dataset to 0G Storage...");
+      setPublishingStep("Uploading secured dataset...");
       setPublishProgress(40);
       const datasetUploadForm = new FormData();
       datasetUploadForm.append("file", encrypted.encryptedBlob, `${encrypted.fileName}.enc`);
@@ -242,15 +297,18 @@ export default function NewDatasetPage() {
       });
       if (!datasetUploadRes.ok) {
         const errBody = (await datasetUploadRes.json()) as { error?: { message?: string } };
-        throw new Error(errBody.error?.message ?? "Failed to upload encrypted dataset to 0G");
+        throw new Error(errBody.error?.message ?? "Failed to upload encrypted dataset");
       }
       const datasetUploadData = (await datasetUploadRes.json()) as { datasetRoot: `0x${string}` };
       const datasetRoot = datasetUploadData.datasetRoot;
       setEncryptionKeyData({ datasetRoot, ivHex: encrypted.ivHex, keyHex: encrypted.keyHex });
 
       // Step 3: Generate Manifest
-      setPublishingStep("Uploading manifest to 0G Storage...");
+      setPublishingStep("Saving dataset details...");
       setPublishProgress(60);
+      
+      const ttlHours = ttlUnit === "days" ? ttlValue * 24 : ttlUnit === "weeks" ? ttlValue * 168 : ttlValue;
+      
       const policy: PublishPolicyConfig = {
         allowedPurposeIds,
         royaltyPerEpoch,
@@ -262,10 +320,7 @@ export default function NewDatasetPage() {
 
       const optionalManifestSections = enabledManifestSections.reduce<Record<string, string>>((acc, sectionId) => {
         const value = optionalManifestValues[sectionId].trim();
-        if (!value) {
-          return acc;
-        }
-
+        if (!value) return acc;
         acc[sectionId] = value;
         return acc;
       }, {});
@@ -284,7 +339,6 @@ export default function NewDatasetPage() {
       const manifestJson = JSON.stringify(manifestObj, null, 2);
       const manifestHash = await sha256Hex(manifestJson);
 
-      // Upload Manifest
       const manifestRes = await fetch("/api/publish/manifest/upload", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -297,7 +351,7 @@ export default function NewDatasetPage() {
       setPublishProgress(75);
 
       // Step 4: Register dataset on-chain
-      setPublishingStep("Anchoring to DataPolicy contract...");
+      setPublishingStep("Registering your dataset...");
       const activeWallet = wallets.find((wallet) => wallet.address.toLowerCase() === walletAddress.toLowerCase());
       if (!activeWallet) {
         throw new Error("Connected wallet session not found. Reconnect wallet and retry.");
@@ -359,331 +413,393 @@ export default function NewDatasetPage() {
   };
 
   return (
-    <div className="flex flex-col min-h-full">
-      <AppTopbar title="New Dataset" />
-      <div className="flex-1 p-6">
-        <div className="mx-auto flex w-full max-w-5xl flex-col gap-6">
-          <section className="relative overflow-hidden rounded-2xl border bg-gradient-to-br from-background via-muted/40 to-background p-8">
-            <div className="absolute -top-20 -right-20 size-56 rounded-full bg-primary/10 blur-3xl" />
-            <div className="relative flex flex-col gap-5">
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">Publish Console</Badge>
-                <Badge variant="outline">Client-side encryption</Badge>
-                <Badge variant="outline">Hash-anchored registry</Badge>
+    <div className="flex flex-col min-h-full bg-muted/10 pb-20">
+      <AppTopbar title="Publish Dataset" />
+      <div className="flex-1 p-4 md:p-8 flex justify-center">
+        <div className="mx-auto flex w-full max-w-6xl flex-col md:flex-row gap-8 lg:gap-12 relative">
+          
+          {/* Left Sidebar (Sticky Scrollspy) */}
+          <div className="md:w-64 lg:w-72 flex-shrink-0 hidden md:block">
+            <div className="sticky top-10 flex flex-col gap-6">
+              <div>
+                <h2 className="text-2xl font-semibold tracking-tight">Publish Dataset</h2>
+                <p className="text-sm text-muted-foreground mt-1">Configure your dataset terms and securely publish them to the network.</p>
               </div>
-              <div className="flex flex-col gap-3">
-                <p className="text-sm text-muted-foreground">Decentralized data licensing workflow</p>
-                <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">Publish with confidence.</h1>
-                <p className="max-w-2xl text-base text-muted-foreground">
-                  Configure terms once, then publish through a single orchestration flow that encrypts data locally, creates your policy manifest, and anchors publish metadata.
+              
+              <nav className="flex flex-col gap-1.5">
+                {SECTIONS.map((section) => (
+                  <a 
+                    key={section.id}
+                    href={`#${section.id}`} 
+                    className={cn(
+                      "px-4 py-3 text-sm font-medium rounded-lg transition-all duration-300 border flex items-center gap-3 relative overflow-hidden",
+                      activeSection === section.id 
+                        ? "bg-primary/10 text-primary border-primary/20 shadow-sm" 
+                        : "bg-transparent text-muted-foreground border-transparent hover:bg-muted/50 hover:text-foreground"
+                    )}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      document.getElementById(section.id)?.scrollIntoView({ behavior: "smooth" });
+                    }}
+                  >
+                    {activeSection === section.id && <span className="absolute left-0 top-0 bottom-0 w-1 bg-primary rounded-r-full" />}
+                    {section.label}
+                  </a>
+                ))}
+              </nav>
+
+              <div className="mt-4 p-5 bg-primary/5 border border-primary/20 rounded-xl shadow-sm">
+                <h4 className="font-semibold text-primary text-sm flex items-center gap-2 mb-2"><Lock className="size-4" /> Secure Process</h4>
+                <p className="text-xs text-muted-foreground mb-5 leading-relaxed">
+                  Your files are encrypted on your device before upload, ensuring no one else can read them. Your access rules are securely stored on our network.
                 </p>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Sparkles data-icon="inline-start" />
-                <span>Designed for low friction while preserving cryptographic guarantees.</span>
+                <Button 
+                  onClick={handlePublish} 
+                  disabled={publishing || status === "accepted"} 
+                  className={cn("w-full font-semibold shadow-md transition-all h-11", status === "accepted" ? "bg-green-600 hover:bg-green-700 text-white" : "")}
+                >
+                  {publishing ? "Publishing..." : status === "accepted" ? "Published Successfully!" : "Publish Dataset"}
+                </Button>
               </div>
             </div>
-          </section>
-
-          <div className="grid gap-6 lg:grid-cols-3">
-            <Card className="lg:col-span-2">
-              <CardHeader>
-                <CardTitle>Dataset Configuration</CardTitle>
-                <CardDescription>Everything required to produce a cryptographically bound manifest behind the scenes.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-6">
-                <FieldGroup>
-                  <Field>
-                    <FieldLabel htmlFor="title">Title</FieldLabel>
-                    <Input
-                      id="title"
-                      placeholder="e.g. Llama-3 Fine-Tuning Corpus"
-                      value={title}
-                      onChange={(e) => setTitle(e.target.value)}
-                      disabled={publishing}
-                    />
-                    <FieldDescription>Public-facing summary shown in dataset catalog and audit views.</FieldDescription>
-                  </Field>
-
-                  <Field>
-                    <FieldLabel htmlFor="description">Description</FieldLabel>
-                    <Textarea
-                      id="description"
-                      placeholder="Describe the dataset contents and any usage constraints..."
-                      value={description}
-                      onChange={(e) => setDescription(e.target.value)}
-                      disabled={publishing}
-                    />
-                  </Field>
-
-                  <Field>
-                    <FieldLabel htmlFor="file">Dataset File</FieldLabel>
-                    <Input
-                      id="file"
-                      type="file"
-                      onChange={(e) => setSelectedFile(e.target.files?.[0] ?? null)}
-                      disabled={publishing}
-                    />
-                    <FieldDescription>
-                      {selectedFile
-                        ? `Selected: ${selectedFile.name} (${formatBytes(selectedFile.size)})`
-                        : "Select the source file that will be encrypted locally in your browser."}
-                    </FieldDescription>
-                  </Field>
-                </FieldGroup>
-
-                <Separator />
-
-                <FieldGroup>
-                  <Field>
-                    <FieldContent>
-                      <FieldLabel>Public Manifest Fields</FieldLabel>
-                      <FieldDescription>
-                        `datasetRoot`, `ownerAddress`, and `createdAt` are auto-generated during publish. Add optional policy sections as needed.
-                      </FieldDescription>
-                    </FieldContent>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild>
-                        <Button variant="outline" type="button" disabled={publishing}>
-                          <Plus data-icon="inline-start" />
-                          Add Optional Section
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent align="start">
-                        <DropdownMenuLabel>Manifest Sections</DropdownMenuLabel>
-                        <DropdownMenuGroup>
-                          {OPTIONAL_MANIFEST_SECTIONS.map((section) => (
-                            <DropdownMenuCheckboxItem
-                              key={section.id}
-                              checked={enabledManifestSections.includes(section.id)}
-                              onCheckedChange={(checked) => {
-                                const enabled = checked === true;
-                                setEnabledManifestSections((current) => {
-                                  if (enabled) {
-                                    return current.includes(section.id) ? current : [...current, section.id];
-                                  }
-
-                                  return current.filter((item) => item !== section.id);
-                                });
-                              }}
-                            >
-                              {section.label}
-                            </DropdownMenuCheckboxItem>
-                          ))}
-                        </DropdownMenuGroup>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                  </Field>
-
-                  {enabledManifestSections.length > 0 && (
-                    <FieldGroup>
-                      {enabledManifestSections.map((sectionId) => {
-                        const section = OPTIONAL_MANIFEST_SECTIONS.find((item) => item.id === sectionId);
-                        if (!section) {
-                          return null;
-                        }
-
-                        const fieldId = `manifest-${section.id}`;
-
-                        return (
-                          <Field key={section.id}>
-                            <FieldLabel htmlFor={fieldId}>{section.label}</FieldLabel>
-                            <Textarea
-                              id={fieldId}
-                              placeholder={section.placeholder}
-                              value={optionalManifestValues[section.id]}
-                              onChange={(event) => {
-                                const nextValue = event.target.value;
-                                setOptionalManifestValues((current) => ({
-                                  ...current,
-                                  [section.id]: nextValue,
-                                }));
-                              }}
-                              disabled={publishing}
-                            />
-                          </Field>
-                        );
-                      })}
-                    </FieldGroup>
-                  )}
-                </FieldGroup>
-
-                <FieldGroup>
-                  <FieldSet>
-                    <FieldLegend variant="label">Allowed Purposes</FieldLegend>
-                    <FieldDescription>Select one or more approved training purposes.</FieldDescription>
-                    <FieldGroup className="grid gap-3 sm:grid-cols-2">
-                      {PUBLISH_PURPOSES.map((purpose) => {
-                        const id = `purpose-${purpose.toLowerCase()}`;
-                        const checked = allowedPurposeIds.includes(purpose);
-
-                        return (
-                          <Field key={purpose} orientation="horizontal" className="rounded-lg border p-3" data-disabled={publishing || undefined}>
-                            <Checkbox
-                              id={id}
-                              checked={checked}
-                              onCheckedChange={(value) => {
-                                setAllowedPurposeIds((current) => togglePurpose(current, purpose, value === true));
-                              }}
-                              disabled={publishing}
-                            />
-                            <FieldContent>
-                              <FieldLabel htmlFor={id}>{formatPurposeLabel(purpose)}</FieldLabel>
-                            </FieldContent>
-                          </Field>
-                        );
-                      })}
-                    </FieldGroup>
-                  </FieldSet>
-
-                  <FieldGroup className="grid gap-4 sm:grid-cols-2">
-                    <Field>
-                      <FieldLabel htmlFor="royalty">Royalty per Epoch ($)</FieldLabel>
-                      <Input
-                        id="royalty"
-                        type="number"
-                        min={1}
-                        value={royaltyPerEpoch}
-                        onChange={(e) => setRoyaltyPerEpoch(Number(e.target.value))}
-                        disabled={publishing}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="maxEpochs">Max Epochs per Run</FieldLabel>
-                      <Input
-                        id="maxEpochs"
-                        type="number"
-                        min={1}
-                        value={maxEpochsPerRun}
-                        onChange={(e) => setMaxEpochsPerRun(Number(e.target.value))}
-                        disabled={publishing}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="maxRunsPerRequester">Max Runs per Requester</FieldLabel>
-                      <Input
-                        id="maxRunsPerRequester"
-                        type="number"
-                        min={1}
-                        value={maxRunsPerRequester}
-                        onChange={(e) => setMaxRunsPerRequester(Number(e.target.value))}
-                        disabled={publishing}
-                      />
-                    </Field>
-                    <Field>
-                      <FieldLabel htmlFor="ttlHours">Policy TTL (Hours)</FieldLabel>
-                      <Input
-                        id="ttlHours"
-                        type="number"
-                        min={1}
-                        value={ttlHours}
-                        onChange={(e) => setTtlHours(Number(e.target.value))}
-                        disabled={publishing}
-                      />
-                    </Field>
-                  </FieldGroup>
-
-                  <Field orientation="horizontal" data-disabled={publishing || undefined}>
-                    <FieldContent>
-                      <FieldLabel htmlFor="no-policy-expiry">No Policy Expiry</FieldLabel>
-                      <FieldDescription>
-                        If checked, the policy has no time limit. Otherwise, set an expiry date.
-                      </FieldDescription>
-                    </FieldContent>
-                    <Switch
-                      id="no-policy-expiry"
-                      checked={noPolicyExpiry}
-                      onCheckedChange={setNoPolicyExpiry}
-                      disabled={publishing}
-                    />
-                  </Field>
-                  {!noPolicyExpiry && (
-                    <Field>
-                      <FieldLabel htmlFor="policyExpiry">Policy Expiry Date</FieldLabel>
-                      <Input
-                        id="policyExpiry"
-                        type="datetime-local"
-                        value={policyExpiry}
-                        onChange={(e) => setPolicyExpiry(e.target.value)}
-                        disabled={publishing}
-                      />
-                    </Field>
-                  )}
-                </FieldGroup>
-              </CardContent>
-            </Card>
-
-            <Card className="h-fit border-primary/20 bg-gradient-to-b from-primary/5 to-card lg:sticky lg:top-6">
-              <CardHeader>
-                <CardTitle>Publish Summary</CardTitle>
-                <CardDescription>Architecture checks for this submission.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-4">
-                <div className="flex items-start gap-2 text-sm">
-                  <ShieldCheck data-icon="inline-start" />
-                  <p className="text-muted-foreground">Dataset is encrypted client-side before any upload call.</p>
-                </div>
-                <div className="flex items-start gap-2 text-sm">
-                  <ShieldCheck data-icon="inline-start" />
-                  <p className="text-muted-foreground">Manifest JSON stays hidden and is generated from this form.</p>
-                </div>
-                <div className="flex items-start gap-2 text-sm">
-                  <ShieldCheck data-icon="inline-start" />
-                  <p className="text-muted-foreground">One action triggers manifest upload and submit orchestration.</p>
-                </div>
-                <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground">
-                  Wallet: {walletAddress ? `${walletAddress.slice(0, 6)}...${walletAddress.slice(-4)}` : "Not connected"}
-                </div>
-
-                {publishingStep && (
-                  <div className="flex flex-col gap-2">
-                    <p className="text-sm font-medium">{publishingStep}</p>
-                    <Progress value={publishProgress} />
-                    {requestId && (
-                      <div className="flex items-center gap-2 text-xs">
-                        <span className="text-muted-foreground">Status:</span>
-                        <Badge variant={status === "accepted" ? "default" : "secondary"} className="font-mono uppercase text-[10px]">
-                          {status ?? "queued"}
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-                )}
-
-                <Button
-                  size="lg"
-                  className="w-full text-base font-semibold"
-                  onClick={handlePublish}
-                  disabled={publishing || status === "accepted"}
-                >
-                  {publishing ? "Publishing in progress..." : status === "accepted" ? "Published Successfully" : "Publish to LICEN"}
-                </Button>
-              </CardContent>
-            </Card>
           </div>
 
-          {errorMessage && (
-            <Alert variant="destructive">
-              <AlertTitle>Publish failed</AlertTitle>
-              <AlertDescription>{errorMessage}</AlertDescription>
-            </Alert>
-          )}
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col gap-8 md:pt-2">
+             
+             {/* Status / Error Alerts */}
+             {(publishingStep || errorMessage || status === "accepted") && (
+               <div className="scroll-mt-24" id="status-panel">
+                 {errorMessage && (
+                   <div className="bg-destructive/10 border border-destructive/20 text-destructive p-5 rounded-xl flex items-start gap-3 shadow-sm animate-in slide-in-from-top-2">
+                     <X className="size-5 shrink-0 mt-0.5" />
+                     <div>
+                       <h5 className="font-semibold">Publish Failed</h5>
+                       <p className="text-sm mt-1 opacity-90">{errorMessage}</p>
+                     </div>
+                   </div>
+                 )}
+                 
+                 {publishingStep && status !== "accepted" && !errorMessage && (
+                   <div className="bg-muted/50 border p-6 rounded-xl space-y-4 shadow-sm animate-in slide-in-from-top-2">
+                     <div className="flex justify-between items-center text-sm">
+                       <span className="font-semibold text-foreground flex items-center gap-2">
+                         <span className="relative flex size-3">
+                           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                           <span className="relative inline-flex rounded-full size-3 bg-primary"></span>
+                         </span>
+                         {publishingStep}
+                       </span>
+                       <span className="text-muted-foreground font-mono font-medium">{publishProgress}%</span>
+                     </div>
+                     <Progress value={publishProgress} className="h-2.5" />
+                     {requestId && (
+                        <div className="text-xs text-muted-foreground flex items-center gap-2 pt-3 border-t mt-4">
+                          <span className="uppercase tracking-wider font-semibold">Request ID:</span> <span className="font-mono bg-background px-2 py-0.5 rounded border">{requestId.slice(0, 8)}...</span>
+                          <Badge variant="outline" className="text-[10px] ml-auto uppercase bg-background shadow-sm">{status || "Queued"}</Badge>
+                        </div>
+                     )}
+                   </div>
+                 )}
+                 
+                 {status === "accepted" && (
+                   <div className="bg-green-500/10 border border-green-500/20 p-6 rounded-xl flex items-start gap-4 text-green-700 dark:text-green-400 shadow-sm animate-in slide-in-from-top-2">
+                     <CircleCheckBig className="size-7 shrink-0 mt-0.5 text-green-600" />
+                     <div className="w-full text-left flex flex-col items-start">
+                       <h5 className="font-semibold text-xl tracking-tight text-foreground">Dataset Published Successfully</h5>
+                       <p className="text-sm mt-1 mb-5 opacity-90 font-medium text-foreground">Your dataset is now protected and successfully published to the network.</p>
+                       
+                       {encryptionKeyData && (
+                         <div className="w-full bg-background rounded-xl overflow-hidden border border-green-500/20 shadow-sm">
+                           <div className="bg-destructive/10 px-4 py-3 border-b border-destructive/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                             <p className="text-xs font-bold text-destructive uppercase tracking-wider flex items-center gap-1.5">
+                               <ShieldCheck className="size-4" /> Important: Save your encryption keys
+                             </p>
+                             <p className="text-xs text-destructive/80 font-medium">They will not be shown again.</p>
+                           </div>
+                           
+                           <div className="p-5 flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between bg-muted/30">
+                             <div className="space-y-3 flex-1 min-w-0 w-full">
+                               <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-3 text-sm">
+                                 <span className="text-muted-foreground font-medium flex items-center">Dataset ID:</span>
+                                 <span className="font-mono text-xs truncate bg-background px-2 py-1 rounded border inline-block max-w-[280px]">{encryptionKeyData.datasetRoot}</span>
+                                 
+                                 <span className="text-muted-foreground font-medium flex items-center">IV Hex:</span>
+                                 <span className="font-mono text-xs truncate bg-background px-2 py-1 rounded border inline-block max-w-[280px]">{encryptionKeyData.ivHex}</span>
+                                 
+                                 <span className="text-muted-foreground font-medium flex items-center">Key Hex:</span>
+                                 <span className="font-mono text-xs truncate bg-background px-2 py-1 rounded border inline-block max-w-[280px]">••••••••••••••••••••••••••••</span>
+                               </div>
+                             </div>
+                             
+                             <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto mt-2 xl:mt-0">
+                               <Button variant="default" size="sm" onClick={handleDownloadKeys} className="w-full sm:w-40 bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-sm">
+                                 <Download className="size-4 mr-2" /> Download Keys
+                               </Button>
+                               <Button variant="outline" size="sm" onClick={handleCopy} className="w-full sm:w-40 bg-background shadow-sm">
+                                 {copied ? <Check className="size-4 mr-2 text-green-500" /> : <Copy className="size-4 mr-2" />} 
+                                 {copied ? "Copied!" : "Copy Details"}
+                               </Button>
+                             </div>
+                           </div>
+                         </div>
+                       )}
+                     </div>
+                   </div>
+                 )}
+               </div>
+             )}
 
-          {status === "accepted" && (
-            <Alert>
-              <CircleCheckBig data-icon="inline-start" />
-              <AlertTitle>Dataset published</AlertTitle>
-              <AlertDescription className="flex flex-col gap-3">
-                <span>Your publish request is accepted and anchored on-chain.</span>
-                {encryptionKeyData && (
-                  <div className="flex flex-col gap-1">
-                    <span className="text-xs font-semibold text-destructive">Save these keys now — they will not be shown again.</span>
-                    <pre className="overflow-x-auto rounded-md bg-muted p-3 text-xs font-mono select-all">{JSON.stringify(encryptionKeyData, null, 2)}</pre>
+             {/* Section 1: Details */}
+             <Card id="details" className="scroll-mt-24 border-muted/60 shadow-sm overflow-hidden bg-card">
+               <CardHeader className="bg-muted/20 border-b pb-4">
+                 <CardTitle className="text-xl">Dataset Details</CardTitle>
+                 <CardDescription>Provide the core information and upload your dataset file.</CardDescription>
+               </CardHeader>
+               <CardContent className="p-6 space-y-6">
+                 <div className="grid gap-2">
+                    <label className="text-sm font-semibold">Title</label>
+                    <Input value={title} onChange={e => setTitle(e.target.value)} placeholder="e.g. Llama-3 Fine-Tuning Corpus" className="h-11 shadow-sm max-w-2xl" />
+                 </div>
+                 <div className="grid gap-2">
+                    <label className="text-sm font-semibold">Description</label>
+                    <Textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="Give a brief description of your dataset." className="min-h-[120px] resize-none shadow-sm max-w-2xl" />
+                 </div>
+                 <div className="grid gap-2">
+                    <label className="text-sm font-semibold">Dataset File</label>
+                    <div 
+                      className={cn(
+                        "border-2 border-dashed rounded-xl p-10 flex flex-col items-center justify-center text-center transition-all cursor-pointer max-w-2xl",
+                        selectedFile ? "border-primary/50 bg-primary/5" : "hover:bg-muted/30 hover:border-muted-foreground/30"
+                      )}
+                      onClick={() => document.getElementById("file-upload")?.click()}
+                    >
+                      <div className={cn("size-12 rounded-full flex items-center justify-center mb-4 transition-colors", selectedFile ? "bg-primary text-primary-foreground" : "bg-primary/10 text-primary")}>
+                        {selectedFile ? <CircleCheckBig className="size-6" /> : <UploadCloud className="size-6" />}
+                      </div>
+                      <h4 className="font-medium text-base mb-1">{selectedFile ? "File Selected" : "Click to upload"}</h4>
+                      <p className="text-sm text-muted-foreground mb-5">CSV, JSON, JSONL, parquet or tar.gz</p>
+                      <Input type="file" id="file-upload" className="hidden" onChange={e => setSelectedFile(e.target.files?.[0] ?? null)} onClick={(e) => e.stopPropagation()} />
+                      <Button variant={selectedFile ? "outline" : "secondary"} onClick={(e) => { e.stopPropagation(); document.getElementById("file-upload")?.click(); }}>
+                        {selectedFile ? "Change File" : "Select File"}
+                      </Button>
+                      {selectedFile && (
+                        <div className="mt-5 flex items-center gap-2 bg-background border px-4 py-2 rounded-full text-sm shadow-sm">
+                          <span className="font-medium truncate max-w-[200px]">{selectedFile.name}</span>
+                          <span className="text-muted-foreground">({formatBytes(selectedFile.size)})</span>
+                        </div>
+                      )}
+                    </div>
+                 </div>
+               </CardContent>
+             </Card>
+             
+             {/* Section 2: Purposes */}
+             <Card id="purposes" className="scroll-mt-24 border-muted/60 shadow-sm overflow-hidden bg-card">
+                <CardHeader className="bg-muted/20 border-b pb-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div>
+                      <CardTitle className="text-xl">Allowed Purposes</CardTitle>
+                      <CardDescription className="mt-1">Select how your dataset is permitted to be used for training.</CardDescription>
+                    </div>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => {
+                        if (allowedPurposeIds.length === PUBLISH_PURPOSES.length) {
+                          setAllowedPurposeIds([]);
+                        } else {
+                          setAllowedPurposeIds([...PUBLISH_PURPOSES]);
+                        }
+                      }}
+                    >
+                      {allowedPurposeIds.length === PUBLISH_PURPOSES.length ? "Deselect All" : "Select All"}
+                    </Button>
                   </div>
-                )}
-              </AlertDescription>
-            </Alert>
-          )}
+                </CardHeader>
+                <CardContent className="p-6">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-2">
+                    {PUBLISH_PURPOSES.map(purpose => {
+                       const meta = PURPOSE_META[purpose] || { label: formatPurposeLabel(purpose), description: "Allowed training purpose", icon: ShieldCheck };
+                       const Icon = meta.icon;
+                       const isSelected = allowedPurposeIds.includes(purpose);
+                       return (
+                         <div 
+                           key={purpose} 
+                           onClick={() => setAllowedPurposeIds(current => togglePurpose(current, purpose, !isSelected))}
+                           className={cn("relative p-4 rounded-xl border-2 cursor-pointer transition-all hover:border-primary/50 shadow-sm flex items-center", isSelected ? "border-primary bg-primary/5 shadow-md" : "border-muted/60")}
+                         >
+                           <div className="flex items-start gap-4 flex-1">
+                             <div className={cn("p-2.5 rounded-xl transition-colors", isSelected ? "bg-primary text-primary-foreground shadow-sm" : "bg-muted")}>
+                               <Icon className="size-5" />
+                             </div>
+                             <div className="flex-1 mt-0.5">
+                               <h4 className="font-semibold text-sm mb-1">{meta.label}</h4>
+                               <p className="text-xs text-muted-foreground leading-relaxed pr-6">{meta.description}</p>
+                             </div>
+                           </div>
+                           <div className="absolute right-4 top-1/2 -translate-y-1/2">
+                             <div className={cn("size-5 rounded-full border flex items-center justify-center transition-all", isSelected ? "bg-primary border-primary text-primary-foreground scale-110" : "border-input scale-100")}>
+                               {isSelected && <CheckCircle2 className="size-3" />}
+                             </div>
+                           </div>
+                         </div>
+                       )
+                    })}
+                  </div>
+                </CardContent>
+             </Card>
+
+             {/* Section 3: Policy */}
+             <Card id="policy" className="scroll-mt-24 border-muted/60 shadow-sm overflow-hidden bg-card">
+                <CardHeader className="bg-muted/20 border-b pb-4">
+                  <CardTitle className="text-xl">Access Policy</CardTitle>
+                  <CardDescription>Configure pricing, usage limits, and expiration for this dataset.</CardDescription>
+                </CardHeader>
+                <CardContent className="p-6 space-y-8">
+                  <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+                    <div className="space-y-3 p-4 rounded-xl border bg-muted/10 shadow-sm">
+                      <label className="text-sm font-semibold flex items-center gap-2"><DollarSign className="size-4 text-primary" /> Royalty Fee</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground font-medium">$</span>
+                        <Input type="number" min={1} value={royaltyPerEpoch} onChange={e => setRoyaltyPerEpoch(Number(e.target.value))} className="pl-7 h-11 font-medium text-lg bg-background" />
+                      </div>
+                      <p className="text-xs text-muted-foreground">Price per epoch</p>
+                    </div>
+                    
+                    <div className="space-y-3 p-4 rounded-xl border bg-muted/10 shadow-sm">
+                      <label className="text-sm font-semibold flex items-center gap-2"><Repeat className="size-4 text-primary" /> Max Epochs</label>
+                      <Input type="number" min={1} value={maxEpochsPerRun} onChange={e => setMaxEpochsPerRun(Number(e.target.value))} className="h-11 font-medium text-lg bg-background" />
+                      <p className="text-xs text-muted-foreground">Limit per training run</p>
+                    </div>
+                    
+                    <div className="space-y-3 p-4 rounded-xl border bg-muted/10 shadow-sm">
+                      <label className="text-sm font-semibold flex items-center gap-2"><Users className="size-4 text-primary" /> Request Limit</label>
+                      <Input type="number" min={1} value={maxRunsPerRequester} onChange={e => setMaxRunsPerRequester(Number(e.target.value))} className="h-11 font-medium text-lg bg-background" />
+                      <p className="text-xs text-muted-foreground">Max runs per user</p>
+                    </div>
+                    
+                    <div className="space-y-3 p-4 rounded-xl border bg-muted/10 shadow-sm">
+                      <label className="text-sm font-semibold flex items-center gap-2"><Clock className="size-4 text-primary" /> Session Duration</label>
+                      <div className="flex relative shadow-sm rounded-md">
+                        <Input 
+                          type="number" 
+                          min={1} 
+                          value={ttlValue} 
+                          onChange={e => setTtlValue(Number(e.target.value))} 
+                          className="h-11 font-medium text-lg bg-background rounded-r-none border-r-0 focus-visible:z-10 w-full" 
+                        />
+                        <select 
+                          value={ttlUnit} 
+                          onChange={e => setTtlUnit(e.target.value as "hours" | "days" | "weeks")} 
+                          className="h-11 px-3 bg-muted/50 border border-input rounded-r-md text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-ring focus:z-10"
+                        >
+                          <option value="hours">Hours</option>
+                          <option value="days">Days</option>
+                          <option value="weeks">Weeks</option>
+                        </select>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Active session limit</p>
+                    </div>
+                  </div>
+                  
+                  <div className="bg-gradient-to-br from-muted/50 to-muted/20 p-5 rounded-xl border border-muted/60 space-y-4 shadow-sm max-w-2xl">
+                     <div className="flex items-center justify-between">
+                       <div>
+                         <h4 className="font-semibold text-sm flex items-center gap-2"><CalendarX className="size-4 text-primary" /> Policy Expiration</h4>
+                         <p className="text-xs text-muted-foreground mt-1">When does this access policy expire?</p>
+                       </div>
+                       <div className="flex items-center gap-3">
+                         <span className="text-sm font-medium">{noPolicyExpiry ? "Indefinite" : "Set Date"}</span>
+                         <Switch checked={!noPolicyExpiry} onCheckedChange={(val) => setNoPolicyExpiry(!val)} />
+                       </div>
+                     </div>
+                     
+                     {!noPolicyExpiry && (
+                       <div className="pt-3 border-t border-muted-foreground/10 animate-in fade-in slide-in-from-top-2">
+                         <Input type="datetime-local" value={policyExpiry} onChange={e => setPolicyExpiry(e.target.value)} className="h-11 max-w-sm shadow-sm bg-background" />
+                       </div>
+                     )}
+                  </div>
+                </CardContent>
+             </Card>
+
+             {/* Section 4: Advanced Details */}
+             <div id="advanced" className="scroll-mt-24">
+                <Accordion type="single" collapsible defaultValue="advanced-settings" className="w-full">
+                  <AccordionItem value="advanced-settings" className="border-none">
+                    <AccordionTrigger className="hover:no-underline px-1 py-4 group">
+                      <div className="flex items-center gap-3">
+                        <div className="size-10 rounded-xl bg-muted group-hover:bg-primary/10 flex items-center justify-center transition-colors">
+                          <FileJson className="size-5 text-muted-foreground group-hover:text-primary transition-colors" />
+                        </div>
+                        <div className="text-left">
+                          <h3 className="text-lg font-semibold tracking-tight text-foreground">Advanced Details</h3>
+                          <p className="text-sm text-muted-foreground font-normal">Attach optional legal terms, categories, or credit requirements to your public listing.</p>
+                        </div>
+                      </div>
+                    </AccordionTrigger>
+                    <AccordionContent className="pt-4 pb-0">
+                      <Card className="border-muted/60 shadow-sm overflow-hidden bg-card">
+                        <CardContent className="p-6">
+                          <div className="flex flex-col gap-4">
+                            {OPTIONAL_MANIFEST_SECTIONS.map(section => {
+                              const isEnabled = enabledManifestSections.includes(section.id);
+                              
+                              return (
+                                <div key={section.id} className={cn("border rounded-xl overflow-hidden transition-all duration-300", isEnabled ? "border-primary/40 shadow-md ring-1 ring-primary/10 bg-muted/10" : "border-muted/60 hover:border-primary/30 shadow-sm bg-background")}>
+                                  <div 
+                                    className="p-4 flex items-center justify-between cursor-pointer hover:bg-muted/30 transition-colors"
+                                    onClick={() => {
+                                      if (!isEnabled) {
+                                         setEnabledManifestSections(prev => [...prev, section.id]);
+                                      } else {
+                                         setEnabledManifestSections(prev => prev.filter(id => id !== section.id));
+                                      }
+                                    }}
+                                  >
+                                    <div className="flex flex-col">
+                                      <span className="font-semibold text-sm">{section.label}</span>
+                                      {!isEnabled && <span className="text-xs text-muted-foreground mt-0.5">{section.placeholder}</span>}
+                                    </div>
+                                    <Button variant="ghost" size="icon" className={cn("size-8 rounded-full pointer-events-none", isEnabled ? "text-destructive bg-destructive/10" : "text-primary bg-primary/10")}>
+                                      {isEnabled ? <X className="size-4" /> : <Plus className="size-4" />}
+                                    </Button>
+                                  </div>
+                                  {isEnabled && (
+                                    <div className="p-4 pt-0 border-t border-muted/30 animate-in fade-in slide-in-from-top-2">
+                                      <Textarea 
+                                        className="min-h-[100px] mt-4 shadow-sm bg-background" 
+                                        placeholder={section.placeholder}
+                                        value={optionalManifestValues[section.id]}
+                                        onChange={(e) => setOptionalManifestValues(prev => ({ ...prev, [section.id]: e.target.value }))}
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </AccordionContent>
+                  </AccordionItem>
+                </Accordion>
+             </div>
+
+             {/* Mobile Publish Button */}
+             <div className="md:hidden sticky bottom-4 z-10 p-4 bg-background/95 backdrop-blur-md border border-muted rounded-2xl shadow-xl mt-4">
+                <Button 
+                  onClick={handlePublish} 
+                  disabled={publishing || status === "accepted"}
+                  className={cn("w-full h-12 text-base font-semibold shadow-md", status === "accepted" ? "bg-green-600 hover:bg-green-700 text-white" : "")}
+                >
+                  {publishing ? "Publishing..." : status === "accepted" ? "Published!" : "Publish Dataset"}
+                </Button>
+             </div>
+
+          </div>
         </div>
       </div>
     </div>

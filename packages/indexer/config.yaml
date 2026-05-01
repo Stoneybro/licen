@@ -1,0 +1,30 @@
+name: licen-indexer
+description: Indexer for LICEN DataPolicy on 0G Testnet
+
+field_selection:
+  transaction_fields:
+    - hash
+    - from
+
+networks:
+  - id: 16602
+    rpc_config:
+      url: https://evmrpc-testnet.0g.ai
+    start_block: 0
+    contracts:
+      - name: DataPolicy
+        address: "0x6Fe8B5E16df9E0Aaf5E3dDf0E39BFA66dA25bD0b"
+        handler: src/EventHandlers.ts
+        events:
+          - event: DatasetRegistered(bytes32 indexed datasetRoot, address indexed owner, bytes32 manifestHash)
+          - event: PolicyActivated(bytes32 indexed datasetRoot)
+          - event: PolicyPaused(bytes32 indexed datasetRoot)
+          - event: PolicyResumed(bytes32 indexed datasetRoot)
+          - event: AccessRequested(bytes32 indexed jobId, bytes32 indexed datasetRoot, address indexed requester, uint32 requestedEpochs)
+          - event: AccessGranted(bytes32 indexed jobId)
+          - event: JobStarted(bytes32 indexed jobId)
+          - event: JobCompleted(bytes32 indexed jobId, uint32 actualEpochs, bytes32 resultHash, bytes32 attestationRef)
+          - event: JobFailed(bytes32 indexed jobId, string reasonCode)
+          - event: JobTimedOut(bytes32 indexed jobId)
+          - event: RoyaltySettled(bytes32 indexed jobId, uint256 amount)
+          - event: RefundIssued(bytes32 indexed jobId, uint256 amount)

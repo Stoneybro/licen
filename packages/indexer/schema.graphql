@@ -1,0 +1,42 @@
+type Dataset @entity {
+  id: ID! # datasetRoot
+  owner: String!
+  manifestHash: String!
+  active: Boolean!
+  timestamp: BigInt!
+  txHash: String!
+  
+  # Reverse lookup for jobs
+  jobs: [Job!]! @derivedFrom(field: "dataset")
+}
+
+type Job @entity {
+  id: ID! # jobId
+  dataset: Dataset! # Relation to Dataset
+  datasetRoot: String!
+  requester: String!
+  requestedEpochs: Int!
+  state: String! # Requested, Granted, Running, Completed, Failed, TimedOut, Refunded
+  
+  timestamp: BigInt!
+  txHash: String!
+  lastUpdatedTimestamp: BigInt!
+  
+  actualEpochs: Int
+  resultHash: String
+  attestationRef: String
+  failReason: String
+  
+  royaltySettled: BigInt
+  refundIssued: BigInt
+}
+
+type EventLog @entity {
+  id: ID! # txHash-logIndex
+  datasetRoot: String
+  jobId: String
+  eventType: String! # e.g., "AccessRequested", "PolicyActivated"
+  timestamp: BigInt!
+  txHash: String!
+  details: String # JSON string of event args
+}

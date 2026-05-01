@@ -16,5 +16,7 @@ contract DeployDataPolicy is Script {
         console.log("DataPolicy deployed at:", address(policy));
         console.log("Add to .env.local:");
         console.log("  NEXT_PUBLIC_OG_DATA_POLICY_ADDRESS=%s", address(policy));
+        console.log("Backend wallet:", backendWallet);
+        console.log("Payment token:", paymentToken);
     }
 }
