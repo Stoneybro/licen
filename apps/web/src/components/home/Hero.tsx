@@ -76,9 +76,9 @@ export default function Hero() {
 
           <h1
             ref={headlineRef}
-            className="reveal text-balance font-medium tracking-ultratight text-foreground text-[44px] leading-[1.02] sm:text-[68px] md:text-[88px] lg:text-[108px] xl:text-[124px] mx-auto max-w-[14ch]"
+            className="reveal text-balance font-medium tracking-ultratight text-foreground text-[36px] leading-[1.02] sm:text-[68px] md:text-[88px] lg:text-[108px] xl:text-[124px] mx-auto max-w-[14ch]"
           >
-            The licensing layer for AI training data.
+          Control & Monetize your Datasets
           </h1>
 
           <p
@@ -86,9 +86,7 @@ export default function Hero() {
             className="reveal mt-8 md:mt-10 mx-auto max-w-[640px] text-[15px] md:text-[17px] leading-[1.6] text-muted-foreground"
             style={{ transitionDelay: "120ms" }}
           >
-            LICEN turns datasets into programmable assets: publish encrypted data, attach
-            enforceable usage terms, and settle royalties automatically when licensed training jobs
-            complete.
+            LICEN lets owners publish encrypted datasets, define how they can be used, and earn royalties whenever approved researchers use the data for AI model training.
           </p>
 
           <div

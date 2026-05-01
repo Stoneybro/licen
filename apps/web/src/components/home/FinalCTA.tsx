@@ -18,15 +18,14 @@ export default function FinalCTA() {
           ref={headRef}
           className="reveal text-balance text-[40px] sm:text-[56px] md:text-[80px] lg:text-[96px] leading-[1.02] tracking-ultratight font-medium mx-auto max-w-[18ch]"
         >
-          Your dataset is already valuable. Now it can be enforceable.
+          Your data is valuable. It&apos;s time to get paid for it.
         </h2>
         <p
           ref={subRef}
           className="reveal mt-10 mx-auto max-w-[640px] text-[15px] md:text-[17px] leading-[1.6] text-background/70"
           style={{ transitionDelay: "120ms" }}
         >
-          Deploy LICEN on 0G testnet: publish encrypted data, attach policy terms, and run a
-          licensed training flow with on-chain settlement receipts.
+          Join LICEN today. Publish your dataset securely, set your terms, and earn royalties while protecting your privacy.
         </p>
         <div
           ref={btnRef}

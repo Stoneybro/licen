@@ -5,39 +5,33 @@ import { useReveal } from "@/hooks/useReveal";
 const FEATURES = [
   {
     n: "F1",
-    title: "Encrypted dataset publishing",
-    body:
-      "Datasets are encrypted before upload to 0G Storage. The Merkle root is used as a stable on-chain reference.",
+    title: "Bank-Grade Encryption",
+    body: "Your files are encrypted securely before they even leave your computer. Nobody can see your raw data, not even us.",
   },
   {
     n: "F2",
-    title: "Programmable policy enforcement",
-    body:
-      "Each dataset is governed by a DataPolicy contract that enforces purpose, provider, pricing, usage limits, and expiry logic.",
+    title: "Ironclad Usage Rules",
+    body: "You decide the rules of the game. Restrict who uses your data, set limits, and choose specific academic or commercial purposes.",
   },
   {
     n: "F3",
-    title: "Escrowed royalty settlement",
-    body:
-      "Payment is locked at access grant and settled at completion under contract rules, with refund paths for incomplete usage where configured.",
+    title: "Guaranteed Payouts",
+    body: "Payments are locked securely the moment your data is requested, ensuring you always get paid for your work.",
   },
   {
     n: "F4",
-    title: "Verifiable job lifecycle",
-    body:
-      "Each request gets a unique job ID with auditable transitions (requested, granted, running, completed/failed/timed-out).",
+    title: "Complete Transparency",
+    body: "Track exactly who is using your data and when. Every action leaves an undeniable, verifiable record.",
   },
   {
     n: "F5",
-    title: "Controlled compute path",
-    body:
-      "Jobs run through approved compute providers, with TEE and attestation checks available when policy requires stronger execution guarantees.",
+    title: "Secure Compute",
+    body: "AI models train on your data inside secure, isolated environments. The data goes in, the model gets smarter, but your raw files are never exposed.",
   },
   {
     n: "F6",
-    title: "Immutable receipts",
-    body:
-      "Each completed job produces a permanent on-chain record linking dataset, requester, provider, usage metrics, and settlement outcome.",
+    title: "Immutable Receipts",
+    body: "Every time you get paid, a permanent, tamper-proof record is generated to prove exactly what happened.",
   },
 ];
 
@@ -69,17 +63,16 @@ export default function Features() {
           ref={labelRef}
           className="reveal flex items-center gap-3 text-[11px] font-mono tracking-[0.25em] uppercase text-muted-foreground"
         >
-          <span className="text-foreground/40">04</span>
+          <span className="text-foreground/40">03</span>
           <span className="w-8 h-px bg-border" />
-          <span>Built for real licensing operations</span>
+          <span>Why use Licen?</span>
         </div>
 
         <h2
           ref={headRef}
           className="reveal mt-12 md:mt-20 max-w-[24ch] text-balance text-[34px] sm:text-[44px] md:text-[58px] leading-[1.05] tracking-ultratight font-medium text-foreground"
         >
-          Built for dataset owners who need enforceability—and researchers who need compliant
-          access.
+          Built for creators who want to be paid, and AI builders who need the best data.
         </h2>
 
         <div className="mt-16 md:mt-24 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-px bg-border">

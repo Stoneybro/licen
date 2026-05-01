@@ -5,23 +5,23 @@ import { useReveal } from "@/hooks/useReveal";
 const STEPS = [
   {
     n: "01",
-    title: "Encrypt and publish",
-    body: "Encrypt the dataset client-side, upload to 0G Storage, and derive a Merkle root. That root becomes the dataset's on-chain identity.",
+    title: "Secure Your Data",
+    body: "Your dataset is encrypted locally on your device before it's ever uploaded. It's stored securely in a decentralized vault, meaning nobody can access the raw files without your permission.",
   },
   {
     n: "02",
-    title: "Deploy policy",
-    body: "Create a DataPolicy contract on 0G Chain with enforceable terms: allowed purposes, approved providers, royalty rate, epoch limits, TEE/attestation requirements, and expiry.",
+    title: "Set Your Terms",
+    body: "You dictate exactly how the data can be used. Specify allowed purposes (like Academic Research only), set limits, and define your price per AI training cycle.",
   },
   {
     n: "03",
-    title: "Licensed execution",
-    body: "A researcher requests access. The contract validates policy constraints and locks payment in escrow. The wrapper then starts a policy-compliant job on approved 0G Compute infrastructure using job-scoped access controls.",
+    title: "Approve AI Training",
+    body: "When an AI researcher wants to use your data, they agree to your terms and pay the royalty fee. The system securely grants temporary access to train their model without exposing the raw data.",
   },
   {
     n: "04",
-    title: "Settlement and receipt",
-    body: "On completion, the wrapper submits execution results (and attestation metadata when required). The contract settles royalties, refunds unused escrow if applicable, and records an immutable job receipt.",
+    title: "Get Paid Instantly",
+    body: "Once the training is complete, your royalties are settled automatically and directly to your wallet. You get paid fairly every time your dataset is used.",
   },
 ];
 

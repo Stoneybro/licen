@@ -63,7 +63,7 @@ export default function UseCases() {
           ref={labelRef}
           className="reveal flex items-center gap-3 text-[11px] font-mono tracking-[0.25em] uppercase text-muted-foreground"
         >
-          <span className="text-foreground/40">03</span>
+          <span className="text-foreground/40">04</span>
           <span className="w-8 h-px bg-border" />
           <span>The contract</span>
         </div>
@@ -73,15 +73,14 @@ export default function UseCases() {
             ref={headRef}
             className="reveal lg:col-span-7 text-balance text-[34px] sm:text-[44px] md:text-[58px] leading-[1.05] tracking-ultratight font-medium text-foreground"
           >
-            Every dataset carries its own law.
+            Your terms are written in code, not just paper.
           </h2>
           <div ref={bodyRef} className="reveal lg:col-span-4 lg:col-start-9 self-end space-y-4">
             <p className="text-[15px] md:text-[16px] leading-[1.7] text-muted-foreground">
-              Enforcement-critical terms live on-chain in DataPolicy.
+              When you publish your dataset, your rules are permanently anchored into a secure smart contract.
             </p>
             <p className="text-[15px] md:text-[16px] leading-[1.7] text-muted-foreground">
-              A richer policy manifest (legal text, taxonomy, attribution, derivative rights) is
-              stored off-chain on 0G Storage and anchored by hash.
+              This guarantees that nobody can alter your usage limits, bypass your restrictions, or avoid paying your required royalties. The code enforces the law.
             </p>
           </div>
         </div>

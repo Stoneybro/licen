@@ -5,21 +5,18 @@ import { useReveal } from "@/hooks/useReveal";
 const LAYERS = [
   {
     pkg: "0G Storage",
-    role: "data layer",
-    body:
-      "Encrypted datasets and policy manifests are stored off-chain. Merkle roots provide deterministic references for contract-level enforcement.",
+    role: "secure vault",
+    body: "Your encrypted datasets and usage rules are safely stored here. Only authorized AI training jobs can access the encrypted files.",
   },
   {
     pkg: "0G Chain",
-    role: "enforcement layer",
-    body:
-      "DataPolicy contracts handle access checks, escrow state, policy gating, and royalty settlement events on an EVM-compatible chain.",
+    role: "the ledger",
+    body: "This is where your usage rules are turned into unbreakable law. It automatically handles payments, tracks permissions, and distributes royalties.",
   },
   {
     pkg: "0G Compute",
-    role: "execution layer",
-    body:
-      "Licensed jobs execute through compute providers with funding, verification, and result workflows integrated into wrapper-driven orchestration.",
+    role: "safe training zone",
+    body: "The secure environment where AI models actually train on your data. Your raw files enter, the AI gets smarter, and the data is safely wiped afterwards.",
   },
 ];
 
@@ -72,14 +69,13 @@ export default function Technology() {
             ref={headRef}
             className="reveal lg:col-span-7 text-balance text-[34px] sm:text-[44px] md:text-[58px] leading-[1.05] tracking-ultratight font-medium text-foreground"
           >
-            Three 0G primitives. One licensing system.
+            Powered by next-generation infrastructure.
           </h2>
           <p
             ref={bodyRef}
             className="reveal lg:col-span-4 lg:col-start-9 text-[15px] md:text-[16px] leading-[1.7] text-muted-foreground self-end"
           >
-            LICEN is built on 0G infrastructure, with each layer mapped to a single
-            responsibility.
+            LICEN is built on top of the 0G network, ensuring your data is always secure, your rules are enforced, and your payouts are guaranteed.
           </p>
         </div>
 

@@ -15,8 +15,8 @@ export default function HomePage() {
       <Hero />
       <Problem />
       <HowItWorks />
-      <UseCases />
       <Features />
+      <UseCases />
       <Technology />
       <FinalCTA />
       <Footer />
