@@ -31,7 +31,7 @@ async function fetchJobsFromEnvio() {
     }
   `;
   try {
-    const res = await fetch("http://localhost:8080/v1/graphql", {
+    const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
@@ -61,7 +61,7 @@ async function hydrateJobs() {
           functionName: "policies",
           args: [j.datasetRoot as `0x${string}`],
         });
-        const royaltyPerEpoch = policy[3] || 0n;
+        const royaltyPerEpoch = policy[3] || BigInt(0);
         const total = royaltyPerEpoch * BigInt(j.requestedEpochs);
         escrow = formatUnits(total, 18);
       } catch (err) {
@@ -112,11 +112,7 @@ export default async function ResearcherDashboard() {
         <div className="flex items-start gap-3 rounded-md border border-border bg-muted/30 px-4 py-3">
           <InfoIcon className="size-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            <span className="text-foreground font-medium">You are a researcher.</span>{" "}
-            Browse the marketplace to find datasets with approved policies. Pick a dataset, choose your
-            training purpose and epoch count, then lock lUSD escrow. A 0G Compute node runs your
-            fine-tuning job against the encrypted data — royalties settle on-chain when it completes
-            and any unused escrow is automatically refunded to you.
+            Securely browse premium datasets, request fine-tuning access, and train AI models automatically without ever exposing the underlying data. You choose the dataset and epochs, Licen handles the compute orchestration and guarantees your escrow refunds.
           </p>
         </div>
 
@@ -124,28 +120,28 @@ export default async function ResearcherDashboard() {
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           {[
             {
-              label: "Active Jobs",
-              value: activeJobs.length,
-              sub: activeJobs.length > 0 ? "in progress right now" : "none running",
-              note: "Jobs in Requested, Granted, or Running state — escrow is locked for these",
+              label: "My Sessions",
+              value: myJobs.length,
+              sub: `${activeJobs.length} active sessions`,
+              note: "Training sessions you have requested across all datasets",
             },
             {
-              label: "Escrow Locked",
-              value: `${escrowLocked} lUSD`,
-              sub: activeJobs.length > 0 ? `across ${activeJobs.length} active job${activeJobs.length > 1 ? "s" : ""}` : "none locked",
-              note: "Settled to exact epochs run; any unused amount is refunded to you automatically when a job ends.",
+              label: "Active Sessions",
+              value: activeJobs.length,
+              sub: "running on 0G compute",
+              note: "Active sessions execute securely until completion or failure.",
             },
             {
               label: "Total Spent",
-              value: `${totalSpent.toLocaleString()} lUSD`,
-              sub: "royalties settled",
-              note: "Total royalties you have paid to dataset publishers across all completed jobs",
+              value: `${totalSpent.toLocaleString()} USDC`,
+              sub: "paid directly to owners",
+              note: "Total royalties you've paid from completed AI training sessions",
             },
             {
-              label: "Completed Jobs",
+              label: "Total Completed",
               value: completedJobs.length,
-              sub: `${myJobs.length} total jobs`,
-              note: "Jobs that finished successfully with a result hash and attestation on-chain",
+              sub: escrowLocked > 0 ? `${escrowLocked} USDC locked` : "no active escrow",
+              note: "Number of times you have successfully trained models on licensed datasets",
             },
           ].map((s) => (
             <Card key={s.label}>
@@ -169,9 +165,11 @@ export default async function ResearcherDashboard() {
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-medium">My Training Jobs</h3>
+              <h3 className="text-sm font-medium">My Sessions</h3>
               <p className="text-xs text-muted-foreground mt-0.5">
-                Each job is a fine-tuning run against a licensed dataset. The contract records every state transition on-chain.
+                A summary of your training sessions. Go to{" "}
+                <Link href="/app/sessions" className="underline underline-offset-2 hover:text-foreground">My Sessions</Link>{" "}
+                to view full execution details, manage each one and request new ones.
               </p>
             </div>
             <Button asChild size="sm" variant="ghost" className="h-7 text-xs shrink-0">
@@ -216,7 +214,7 @@ export default async function ResearcherDashboard() {
                   </div>
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
-                      <p className="font-mono text-xs font-medium">{j.escrow} lUSD</p>
+                      <p className="font-mono text-xs font-medium">{j.escrow} USDC</p>
                       <p className="text-[10px] text-muted-foreground">
                         {j.settledAmount ? `${j.settledAmount} settled` : "escrow locked"}
                       </p>
@@ -234,11 +232,12 @@ export default async function ResearcherDashboard() {
           <CardHeader className="pb-2">
             <div className="flex items-center gap-2">
               <BookOpenIcon className="size-4 text-muted-foreground" />
-              <CardTitle className="text-sm font-medium">Browse the marketplace</CardTitle>
+              <CardTitle className="text-sm font-medium">Browse the Marketplace</CardTitle>
             </div>
             <CardDescription className="text-xs">
-              the marketplace lists all datasets with active on-chain policies. You can filter by
-              purpose, check policy terms, and submit a training request in minutes.
+              A summary of available datasets. Go to{" "}
+              <Link href="/app/marketplace" className="underline underline-offset-2 hover:text-foreground">Marketplace</Link>{" "}
+              to filter by purpose, check policy terms, and submit a training request.
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -249,7 +248,7 @@ export default async function ResearcherDashboard() {
               </div>
               <div className="flex flex-col gap-0.5">
                 <span className="text-foreground font-medium">2. Configure & escrow</span>
-                <span>Set epoch count, approve lUSD, lock escrow in one tx</span>
+                <span>Set epoch count, approve USDC, lock escrow in one tx</span>
               </div>
               <div className="flex flex-col gap-0.5">
                 <span className="text-foreground font-medium">3. Job completes</span>

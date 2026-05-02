@@ -1,73 +1,148 @@
 # LICEN Development Plan
 
-This plan reflects the **current codebase state and our roadmap**:
+This plan reflects the **current codebase state and roadmap**:
 
-- **Publish Flow**: Substantially complete. The frontend implements a unified "Settings Dashboard" for dataset creation.
-- **Crypto & Storage**: Client-side AES encryption is implemented. 0G Storage is used for dataset blobs and public JSON manifests.
-- **Auth**: Integrated via Privy with `/login` and protected `/app/*` routes.
-- **Contracts**: The `DataPolicy` schema has been refined (removing legacy fields like `minEscrow` and `requireTEE`, standardizing on `royaltyPerEpoch`, `ttlHours`, etc.).
-- **Read Phase (Marketplace)**: Currently uses mock data. Needs to be replaced with an Envio Indexer and real 0G Storage reads.
-- **Compute Phase**: Needs implementation. Will rely on 0G Compute (TEEs), Lit Protocol for key management, and a Backend Orchestrator.
+- **Publish Flow** ✅ Complete — unified Settings Dashboard UX for dataset creation.
+- **Crypto & Storage** ✅ Complete — client-side AES-256-GCM encryption, 0G Storage upload, manifest generation.
+- **Auth** ✅ Complete — Privy integration with `/login` and protected `/app/*` routes.
+- **Contracts** ✅ Complete — `DataPolicy.sol` refined (removed legacy `minEscrow`, `requireTEE`; standardised on `royaltyPerEpoch`, `accessTtlSeconds`).
+- **Read Phase (Marketplace)** ✅ Complete — Envio Indexer live, all mock data removed, real ERC-20 balance reads.
+- **Key Exchange** 🔄 In Progress — ECIES envelope encryption replacing raw AES key exposure.
+- **Compute Phase** ⏳ Next — Backend Orchestrator + 0G Compute integration.
+- **Settlement & Audit** ⏳ Future — attestation verification + royalty audit dashboard.
 
 ---
 
 ## Architecture Tracks
 
-### Track A — Read Phase (Marketplace & Indexer)
-**Target: Hydrate the Marketplace with real published data.**
-- Deploy an Envio Indexer to listen to `registerDataset` events on the 0G Chain.
-- Extract `datasetRoot` and `manifestUri` from indexed events.
-- Update the frontend Marketplace/Catalog to query the Envio GraphQL API.
-- Fetch actual JSON manifests from 0G Storage to display dataset titles, descriptions, and policies.
-- Remove all mock datasets from the frontend.
+### Track A — Read Phase (Marketplace & Indexer) ✅ DONE
+- Deployed Envio Indexer listening to `DatasetRegistered`, `AccessGranted`, `RoyaltySettled` events.
+- Frontend Marketplace hydrated from Envio GraphQL + on-chain policy reads via viem.
+- `lUSD` renamed to `USDC`. All mock data (`MOCK_DATASETS`, `MOCK_JOBS`, `MOCK_WALLET`) removed.
+- Real ERC-20 balance (`0x6A0C73162c20Bc56212D643112c339f654C45198`) fetched in Topbar, Settings, and Request flow.
+- Empty state placeholders added to Marketplace, Sessions, and Publisher Dashboard.
 
-### Track B — Key Management (Lit Protocol)
-**Target: Remove local key exposure and implement secure provisioning.**
-- Update the Publish Flow: After client-side encryption, the raw AES key must no longer be exposed to the user.
-- Integrate Lit Protocol: Encrypt the AES key into shares.
-- Set Lit Access Control Conditions (ACCs) dictating that only a verified 0G Compute node / Orchestrator with proof of escrow payment can decrypt the key.
+### Track B — Key Exchange (ECIES Envelope) 🔄 IN PROGRESS
+**Target: Remove raw AES key exposure and implement secure provisioning.**
 
-### Track C — Compute Phase (Orchestration & 0G Compute)
+#### What we're building
+The publish flow currently exports the raw `keyHex` and `ivHex` from the browser. This is the only remaining security gap — the key is visible during the publish step. We are sealing it server-side before the user ever sees it.
+
+#### Implementation Steps
+
+**Step B.1 — Install `eciesjs`**
+```bash
+pnpm add eciesjs --filter web
+```
+
+**Step B.2 — Orchestrator ECIES Key Setup (one-time)**
+Generate a secp256k1 keypair for the orchestrator:
+```bash
+node -e "const {PrivateKey} = require('eciesjs'); const k = new PrivateKey(); console.log('PRIV:', k.secret.toString('hex')); console.log('PUB:', k.publicKey.toBytes(false).toString('hex'));"
+```
+Store in environment:
+```
+ORCHESTRATOR_PRIVATE_KEY=<hex>           # server only, never in browser
+NEXT_PUBLIC_ORCHESTRATOR_PUBLIC_KEY=<hex> # safe to expose
+```
+
+**Step B.3 — Client: Seal AES Key After Encryption**
+In `src/lib/publish/encryption.ts`, add a `sealKey()` function that:
+1. Takes the raw AES key bytes + IV bytes
+2. Calls `POST /api/lit/seal-key` with `{ aesKeyHex, ivHex, datasetRoot, publisherAddress }`
+3. Returns `{ encryptedKeyEnvelope: string }` — the ECIES ciphertext hex
+
+The raw `keyHex` is zeroed from memory after sealing; only `encryptedKeyEnvelope` is stored.
+
+**Step B.4 — API Route: `POST /api/lit/seal-key`**
+Server-side Next.js route in `src/app/api/lit/seal-key/route.ts`:
+1. Receives `{ aesKeyHex, ivHex, datasetRoot, publisherAddress }`
+2. Verifies `publisherAddress` matches the dataset owner on-chain (read `DataPolicy.policies(datasetRoot).owner`)
+3. ECIES-encrypts the AES key using `ORCHESTRATOR_PRIVATE_KEY`
+4. Returns `{ encryptedKeyEnvelope: string }`
+
+**Step B.5 — Store Envelope in 0G Storage Metadata**
+The `encryptedKeyEnvelope` is included in the 0G Storage metadata blob alongside the encrypted dataset. The manifest hash continues to link everything together.
+
+**Step B.6 — Orchestrator: Decrypt on AccessGranted**
+In `packages/orchestrator/src/keyExchange.ts`:
+1. On `AccessGranted` event, fetch metadata from 0G Storage
+2. Extract `encryptedKeyEnvelope`
+3. ECIES-decrypt using `ORCHESTRATOR_PRIVATE_KEY` → raw AES key
+4. Dispatch AES key to 0G Compute job
+5. Zero AES key from memory (`keyBytes.fill(0)`)
+
+#### Key naming convention
+The route is named `/api/lit/seal-key` intentionally — when we upgrade to Lit Protocol, we swap the implementation of this route without changing any callers. The interface stays identical.
+
+### Track C — Compute Phase (Orchestration & 0G Compute) ⏳ NEXT
 **Target: Enable researchers to run training sessions securely.**
-- **Smart Contract**: Implement the escrow/payment logic (`initiateTraining`) in `DataPolicy.sol`.
-- **Backend Orchestrator**: Build a service to listen for payment events, map them to requested sessions, and dispatch workloads to 0G Compute.
-- **Execution**: The 0G Compute node must pull the encrypted data from 0G Storage, reconstruct the decryption key via Lit Protocol, and run the training inside a Trusted Execution Environment (TEE).
+- **Backend Orchestrator** (`packages/orchestrator`): event listener for `AccessGranted`, key decryption, job dispatch to 0G Compute.
+- **State Machine**: `startJob` → 0G Compute → `confirmTrainingComplete` / `markJobFailed`.
+- **Execution**: 0G Compute node receives encrypted data location + decrypted AES key, trains inside TEE.
 
-### Track D — Audit Phase (Settlement & UI)
+### Track D — Audit Phase (Settlement & UI) ⏳ FUTURE
 **Target: Trustless settlement based on hardware attestation.**
-- **Attestation Verification**: The orchestrator/contract must verify the cryptographic attestation report generated by the 0G Compute TEE upon job completion.
-- **Royalty Settlement**: Settle funds based on `actualEpochs` run, paying the publisher and refunding the remainder to the researcher.
-- **Audit Dashboard**: Build a UI for publishers to view their dataset usage, verify attestations, and claim earnings.
+- **Attestation Verification**: verify cryptographic TEE report on-chain.
+- **Royalty Settlement**: pay publisher `royaltyPerEpoch * actualEpochs`; refund researcher the rest.
+- **Audit Dashboard**: publishers view dataset usage, verify attestations, and claim earnings.
 
 ---
 
 ## Phase Milestones
 
-### Milestone 1: Publish Flow MVP (Completed)
+### Milestone 1: Publish Flow MVP ✅ Complete
 - Unified settings dashboard UX for publishing.
-- Client-side encryption and 0G Storage upload.
-- Manifest generation and on-chain anchoring.
+- Client-side AES-256-GCM encryption and 0G Storage upload.
+- Manifest generation and on-chain `DataPolicy.registerDataset()` anchoring.
 
-### Milestone 2: Read Phase (Next Immediate Action)
-- Envio Indexer setup.
-- Real-time marketplace hydration from 0G Storage and Chain.
+### Milestone 2: Read Phase ✅ Complete
+- Envio Indexer setup and deployment.
+- Real-time marketplace hydration from Envio GraphQL and on-chain reads.
+- All mock data removed. Live ERC-20 balance integration.
 
-### Milestone 3: Key Network & Escrow
-- Lit Protocol integration for the Publish Flow.
-- Escrow locking logic in `DataPolicy.sol`.
+### Milestone 3: Key Exchange (ECIES → Lit Protocol upgrade path)
+
+**MVP (current sprint):**
+- `eciesjs` installed as the crypto primitive.
+- `/api/lit/seal-key` API route seals AES key with orchestrator's ECIES public key.
+- Publish form updated to call seal-key and store `encryptedKeyEnvelope` in 0G metadata.
+- Orchestrator decrypts on `AccessGranted` before dispatching to 0G Compute.
+
+**Production upgrade (post-launch):**
+- Replace `/api/lit/seal-key` implementation with Lit Protocol Chipotle API.
+- Deploy `encrypt-dataset-key` and `decrypt-dataset-key` Lit Actions to IPFS.
+- Orchestrator calls Lit API for decryption instead of local ECIES key.
+- Optional: Shamir Secret Sharing across 3–5 nodes as intermediate decentralisation step.
 
 ### Milestone 4: Compute Orchestration
 - Backend Orchestrator dispatching jobs to 0G Compute.
 - TEE data decryption and training execution.
+- `startJob` / `confirmTrainingComplete` lifecycle on-chain.
 
 ### Milestone 5: Attestation & Audit
-- Verifying TEE reports.
+- Verifying TEE attestation reports.
 - Royalty settlement and Audit Dashboard UI.
+
+---
+
+## Production Upgrade Paths Summary
+
+| Component | MVP | Production |
+|---|---|---|
+| Key Management | ECIES (orchestrator keypair) | Lit Protocol Chipotle or Threshold Network TACo |
+| Key Decentralisation | Single orchestrator | Shamir 3-of-5 or fully decentralised TEE network |
+| Compute Attestation | Trusted orchestrator report | On-chain Intel TDX/AMD SEV-SNP quote verification |
+| Researcher Identity | Wallet address only | Verifiable credentials / ZK purpose proofs |
+| Royalty Token | USDC on 0G Testnet | Mainnet USDC or native governance token |
 
 ---
 
 ## Immediate Next Actions
 
-1. Scaffold the Envio Indexer for the `DataPolicy` contract.
-2. Replace frontend mock data in the Marketplace with the Envio GraphQL API.
-3. Fetch JSON manifests dynamically from 0G Storage.
+1. ~~Scaffold Envio Indexer~~ ✅ Done
+2. ~~Replace mock data in Marketplace~~ ✅ Done
+3. **Install `eciesjs` and implement `/api/lit/seal-key` route** ← current
+4. **Update publish form to seal AES key and store envelope in 0G metadata**
+5. **Build `packages/orchestrator/src/keyExchange.ts` decrypt-on-grant**
+6. Wire orchestrator to 0G Compute API for job dispatch

@@ -8,6 +8,11 @@ export type EncryptDatasetResult = {
   mimeType: string;
 };
 
+export type SealKeyResult = {
+  /** ECIES ciphertext envelope — safe to store in 0G Storage metadata */
+  encryptedKeyEnvelope: string;
+};
+
 function bytesToHex(bytes: Uint8Array): `0x${string}` {
   return `0x${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`;
 }
@@ -36,4 +41,43 @@ export async function encryptDatasetFile(file: File): Promise<EncryptDatasetResu
     fileName: file.name,
     mimeType: file.type || "application/octet-stream",
   };
+}
+
+/**
+ * Seal the raw AES key by sending it to the /api/lit/seal-key server route.
+ * The server ECIES-encrypts it with the orchestrator's public key.
+ *
+ * After this call, the raw keyHex should be zeroed / discarded by the caller.
+ * Only the returned encryptedKeyEnvelope should be persisted.
+ *
+ * If NEXT_PUBLIC_ORCHESTRATOR_PUBLIC_KEY is not configured (local dev),
+ * this returns a placeholder so the publish flow is not blocked.
+ */
+export async function sealKeyEnvelope(
+  keyHex: string,
+  ivHex: string,
+  datasetRoot: string,
+  publisherAddress: string
+): Promise<SealKeyResult> {
+  // In local dev without the orchestrator key set, return a dev placeholder
+  if (!process.env.NEXT_PUBLIC_ORCHESTRATOR_PUBLIC_KEY) {
+    console.warn(
+      "[sealKeyEnvelope] NEXT_PUBLIC_ORCHESTRATOR_PUBLIC_KEY not set — using dev placeholder. " +
+      "Set this env var for production builds."
+    );
+    return { encryptedKeyEnvelope: `dev:${keyHex}:${ivHex}` };
+  }
+
+  const res = await fetch("/api/lit/seal-key", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ aesKeyHex: keyHex, ivHex, datasetRoot, publisherAddress }),
+  });
+
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({ error: "Unknown error" }));
+    throw new Error(`seal-key failed (${res.status}): ${err.error ?? JSON.stringify(err)}`);
+  }
+
+  return res.json() as Promise<SealKeyResult>;
 }

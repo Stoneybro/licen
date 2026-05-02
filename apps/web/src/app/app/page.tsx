@@ -1,3 +1,6 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
 import { InfoIcon, ArrowRightIcon, DatabaseIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,28 +9,104 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
-import { MOCK_DATASETS, MOCK_JOBS } from "@/lib/mock";
-
-const ME = "0x4f3a8b2c1d9e6f7a0b5c3d2e1f8a9b4c5d6e7f80";
+import { usePrivy } from "@privy-io/react-auth";
+import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
+import { formatUnits } from "viem";
 
 export default function PublisherDashboard() {
-  const myDatasets = MOCK_DATASETS.filter((d) => d.owner === ME);
+  const { user } = usePrivy();
+  const walletAddress = user?.wallet?.address;
+
+  const [myDatasets, setMyDatasets] = React.useState<any[]>([]);
+  const [activeJobsOnMyDatasets, setActiveJobsOnMyDatasets] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    async function fetchDashboardData() {
+      if (!walletAddress) return;
+      try {
+        const query = `
+          query GetDashboardData {
+            Dataset(where: { owner: { _ilike: "${walletAddress}" } }) {
+              id
+              owner
+              manifestHash
+              active
+              timestamp
+            }
+          }
+        `;
+        const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        });
+        const json = await res.json();
+        const indexerDatasets = json.data?.Dataset || [];
+
+        const publicClient = getOgPublicClient();
+        const policyAddress = getDataPolicyAddress();
+
+        const hydrated = await Promise.all(
+          indexerDatasets.map(async (d: any) => {
+            try {
+              const policy: any = await publicClient.readContract({
+                address: policyAddress,
+                abi: DATA_POLICY_ABI,
+                functionName: "policies",
+                args: [d.id as `0x${string}`],
+              });
+              return {
+                datasetRoot: d.id,
+                active: d.active,
+                label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
+                royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
+                lifetimeRoyalties: "0",
+                jobCount: 0,
+                activeJobCount: 0,
+              };
+            } catch (err) {
+              console.error(err);
+              return null;
+            }
+          })
+        );
+
+        setMyDatasets(hydrated.filter(Boolean));
+        // Mocking the active jobs until the orchestrator is built.
+        setActiveJobsOnMyDatasets([]);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (walletAddress) {
+      fetchDashboardData();
+    } else {
+      setLoading(false);
+    }
+  }, [walletAddress]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-full">
+        <AppTopbar title="Publish" />
+        <div className="flex-1 p-6 flex items-center justify-center">
+          <p className="text-sm text-muted-foreground">Loading dashboard...</p>
+        </div>
+      </div>
+    );
+  }
+
   const activeDatasets = myDatasets.filter((d) => d.active);
-  const totalRoyalties = myDatasets.reduce(
-    (acc, d) => acc + parseFloat(d.lifetimeRoyalties.replace(",", "")),
-    0
-  );
+  const totalRoyalties = myDatasets.reduce((acc, d) => acc + parseFloat(d.lifetimeRoyalties.replace(",", "")), 0);
   const totalJobs = myDatasets.reduce((acc, d) => acc + d.jobCount, 0);
-  const activeJobsOnMyDatasets = MOCK_JOBS.filter(
-    (j) =>
-      myDatasets.some((d) => d.datasetRoot === j.datasetRoot) &&
-      ["Requested", "Granted", "Running"].includes(j.state)
-  );
 
   return (
     <div className="flex flex-col min-h-full">
       <AppTopbar title="Publish" />
-
       <div className="flex-1 p-6 flex flex-col gap-6">
 
         {/* Explainer banner */}
@@ -71,7 +150,7 @@ export default function PublisherDashboard() {
               <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Earnings</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-1">
-              <p className="text-xl font-semibold tabular-nums">{totalRoyalties.toLocaleString()} lUSD</p>
+              <p className="text-xl font-semibold tabular-nums">{totalRoyalties.toLocaleString()} USDC</p>
               <p className="text-xs text-muted-foreground">paid directly to your wallet</p>
               <p className="text-[11px] text-muted-foreground/60 leading-relaxed border-t border-border pt-1.5 mt-0.5">
                 Total royalties you've earned from completed AI training sessions
@@ -130,11 +209,11 @@ export default function PublisherDashboard() {
                 <div>
                   <p className="text-sm font-medium">No datasets yet</p>
                   <p className="text-xs text-muted-foreground mt-1 max-w-[36ch]">
-                    Head to My Datasets to publish your first dataset and start earning royalties.
+                    Publish your first dataset and start earning royalties securely on-chain.
                   </p>
                 </div>
                 <Button asChild size="sm" className="h-7 text-xs gap-1 mt-1">
-                  <Link href="/app/datasets">Go to My Datasets →</Link>
+                  <Link href="/app/datasets/new">Publish new dataset →</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -165,8 +244,8 @@ export default function PublisherDashboard() {
                             {d.active ? "Active" : "Paused"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{d.royaltyPerEpoch} lUSD/epoch</TableCell>
-                        <TableCell className="text-right font-mono text-xs">{d.lifetimeRoyalties} lUSD</TableCell>
+                        <TableCell className="font-mono text-xs">{d.royaltyPerEpoch} USDC/epoch</TableCell>
+                        <TableCell className="text-right font-mono text-xs">{d.lifetimeRoyalties} USDC</TableCell>
                         <TableCell className="text-right pr-6">
                           <div className="flex items-center justify-end gap-2">
                             <span className="font-mono text-xs">{d.jobCount}</span>

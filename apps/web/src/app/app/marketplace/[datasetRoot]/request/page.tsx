@@ -13,9 +13,21 @@ import { Select, SelectContent, SelectItem, SelectGroup, SelectTrigger, SelectVa
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { HashChip } from "@/components/app/hash-chip";
 import { AppTopbar } from "@/components/app/app-topbar";
-import { MOCK_WALLET, PURPOSES } from "@/lib/mock";
-import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
-import { formatUnits } from "viem";
+import { PURPOSES } from "@/lib/mock";
+import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress, getOgChain } from "@/lib/publish/onchain";
+import { formatUnits, createPublicClient, http } from "viem";
+import { usePrivy } from "@privy-io/react-auth";
+
+const TOKEN_ADDRESS = "0x6A0C73162c20Bc56212D643112c339f654C45198";
+const ERC20_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  }
+] as const;
 
 const STEPS = ["Configure", "Review", "Confirm"];
 
@@ -33,6 +45,11 @@ export default function RequestAccessPage() {
   const [epochs, setEpochs] = React.useState("5");
   const [purposeId, setPurposeId] = React.useState("");
 
+  const { user } = usePrivy();
+  const walletAddress = user?.wallet?.address;
+  const [balanceStr, setBalanceStr] = React.useState<string>("0");
+  const [hasBalance, setHasBalance] = React.useState<boolean>(true);
+
   React.useEffect(() => {
     async function fetchDataset() {
       if (!datasetRoot) return;
@@ -47,7 +64,7 @@ export default function RequestAccessPage() {
             }
           }
         `;
-        const res = await fetch("http://localhost:8080/v1/graphql", {
+        const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query })
@@ -71,7 +88,7 @@ export default function RequestAccessPage() {
         const hydrated = {
           datasetRoot: d.id,
           label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
-          royaltyPerEpoch: formatUnits(policy[3] || 0n, 18),
+          royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
           maxEpochsPerRun: Number(policy[4] || 0),
           requireResultAttestation: policy[8] || false,
           allowedPurposeIds: ["0x6e657572616c5f72657365617263680000000000000000000000000000000000"],
@@ -85,8 +102,34 @@ export default function RequestAccessPage() {
         setLoading(false);
       }
     }
+
+    async function fetchBalance() {
+      if (!walletAddress) return;
+      const rpcUrl = process.env.NEXT_PUBLIC_OG_EVM_RPC_URL || "https://evmrpc-testnet.0g.ai";
+      const client = createPublicClient({
+        chain: getOgChain(rpcUrl),
+        transport: http(rpcUrl)
+      });
+      client.readContract({
+        address: TOKEN_ADDRESS,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [walletAddress as `0x${string}`],
+      }).then(b => {
+        setBalanceStr(Number(formatUnits(b as bigint, 18)).toFixed(2));
+      }).catch(console.error);
+    }
+    
     fetchDataset();
-  }, [datasetRoot]);
+    fetchBalance();
+  }, [datasetRoot, walletAddress]);
+
+  const epochsNum = parseInt(epochs, 10) || 0;
+  const quote = epochsNum * parseInt(dataset?.royaltyPerEpoch || "0", 10);
+  
+  React.useEffect(() => {
+    setHasBalance(parseFloat(balanceStr) >= quote);
+  }, [balanceStr, quote]);
 
   if (loading) {
     return (
@@ -100,10 +143,7 @@ export default function RequestAccessPage() {
   }
 
   if (!dataset) return null;
-
-  const epochsNum = parseInt(epochs, 10) || 0;
-  const quote = epochsNum * parseInt(dataset.royaltyPerEpoch, 10);
-  const hasBalance = parseFloat(MOCK_WALLET.lUsdBalance.replace(",", "")) >= quote;
+  
   const hasAllowance = false;
 
   return (
@@ -190,7 +230,7 @@ export default function RequestAccessPage() {
               <div className="flex flex-col gap-1.5 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Rate</span>
-                  <span className="font-mono">{dataset.royaltyPerEpoch} lUSD/epoch</span>
+                  <span className="font-mono">{dataset.royaltyPerEpoch} USDC/epoch</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Epochs</span>
@@ -198,7 +238,7 @@ export default function RequestAccessPage() {
                 </div>
                 <div className="flex items-center justify-between font-medium">
                   <span>Total escrow required</span>
-                  <span className="font-mono">{quote} lUSD</span>
+                  <span className="font-mono">{quote} USDC</span>
                 </div>
               </div>
 
@@ -235,12 +275,12 @@ export default function RequestAccessPage() {
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Rate</span>
-                <span className="font-mono">{dataset.royaltyPerEpoch} lUSD/epoch</span>
+                <span className="font-mono">{dataset.royaltyPerEpoch} USDC/epoch</span>
               </div>
               <Separator />
               <div className="flex items-center justify-between font-medium">
                 <span>Escrow to lock</span>
-                <span className="font-mono">{quote} lUSD</span>
+                <span className="font-mono">{quote} USDC</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Settlement</span>
@@ -254,16 +294,16 @@ export default function RequestAccessPage() {
               </div>
               <Separator />
               <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Your lUSD balance</span>
+                <span className="text-muted-foreground">Your USDC balance</span>
                 <span className={`font-mono font-medium ${!hasBalance ? "text-destructive" : ""}`}>
-                  {MOCK_WALLET.lUsdBalance} lUSD
+                  {balanceStr} USDC
                 </span>
               </div>
               {!hasBalance && (
                 <Alert>
                   <AlertTriangleIcon className="size-3" />
                   <AlertDescription className="text-xs">
-                    Insufficient lUSD. You need {quote} but have {MOCK_WALLET.lUsdBalance}. Top up via wallet menu.
+                    Insufficient USDC. You need {quote} but have {balanceStr}. Top up via wallet menu.
                   </AlertDescription>
                 </Alert>
               )}
@@ -285,7 +325,7 @@ export default function RequestAccessPage() {
               <CardDescription className="text-xs">
                 {hasAllowance
                   ? "Sign the transaction to lock escrow and submit your request."
-                  : "Two steps: approve lUSD spend, then submit request. Batched in one UserOp."}
+                  : "Two steps: approve USDC spend, then submit request. Batched in one UserOp."}
               </CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
@@ -293,7 +333,7 @@ export default function RequestAccessPage() {
                 <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
                   <div className="size-1.5 rounded-full bg-muted-foreground shrink-0" />
                   <span className="text-xs text-muted-foreground">
-                    <span className="text-foreground font-medium">Enable lUSD</span> — approve allowance for the contract
+                    <span className="text-foreground font-medium">Enable USDC</span> — approve allowance for the contract
                   </span>
                   <Badge variant="outline" className="ml-auto text-[10px] h-4">pending</Badge>
                 </div>
@@ -301,7 +341,7 @@ export default function RequestAccessPage() {
               <div className="flex items-center gap-2 rounded-md border border-border px-3 py-2">
                 <div className="size-1.5 rounded-full bg-muted-foreground shrink-0" />
                 <span className="text-xs text-muted-foreground">
-                  <span className="text-foreground font-medium">requestAccess</span> — lock {quote} lUSD escrow
+                  <span className="text-foreground font-medium">requestAccess</span> — lock {quote} USDC escrow
                 </span>
                 <Badge variant="outline" className="ml-auto text-[10px] h-4">pending</Badge>
               </div>

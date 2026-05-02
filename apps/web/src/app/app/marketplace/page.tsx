@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
-import { PURPOSES } from "@/lib/publish/contracts";
+import { PURPOSES } from "@/lib/mock";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
 import { formatUnits } from "viem";
 
@@ -30,7 +30,7 @@ async function fetchDatasetsFromEnvio() {
     }
   `;
   try {
-    const res = await fetch("http://localhost:8080/v1/graphql", {
+    const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
@@ -66,7 +66,7 @@ async function hydrateDatasets() {
           active: d.active,
           label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
           description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
-          royaltyPerEpoch: formatUnits(policy[3] || 0n, 18),
+          royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
           maxEpochsPerRun: policy[4] || 0,
           maxRunsPerRequester: policy[5] || 0,
           openRequesters: policy[10] || false,
@@ -101,92 +101,106 @@ export default async function MarketplacePage() {
           </p>
         </div>
 
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-          {datasets.map((d) => {
-            const isOwner = d.owner.toLowerCase() === ME.toLowerCase();
-            return (
-              <Card key={d.datasetRoot} className="flex flex-col">
-                <CardHeader className="pb-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex-1 min-w-0">
-                      <CardTitle className="text-sm font-medium leading-snug">{d.label}</CardTitle>
-                      <HashChip hash={d.datasetRoot} className="mt-1" />
+        {datasets.length === 0 ? (
+          <Card className="border-dashed mt-4">
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <InfoIcon className="size-8 text-muted-foreground/40" />
+              <div>
+                <p className="text-sm font-medium">No datasets available</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-[36ch]">
+                  There are currently no active datasets in the marketplace. Check back later when publishers have uploaded new data.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            {datasets.map((d) => {
+              const isOwner = d.owner.toLowerCase() === ME.toLowerCase();
+              return (
+                <Card key={d.datasetRoot} className="flex flex-col">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        <CardTitle className="text-sm font-medium leading-snug">{d.label}</CardTitle>
+                        <HashChip hash={d.datasetRoot} className="mt-1" />
+                      </div>
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {d.active ? (
+                          <Badge variant="outline" className="text-[10px] h-4">Active</Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px] h-4">Paused</Badge>
+                        )}
+                      </div>
                     </div>
-                    <div className="flex flex-col items-end gap-1 shrink-0">
-                      {d.active ? (
-                        <Badge variant="outline" className="text-[10px] h-4">Active</Badge>
-                      ) : (
-                        <Badge variant="secondary" className="text-[10px] h-4">Paused</Badge>
-                      )}
+                    <CardDescription className="text-xs mt-1 line-clamp-2">{d.description}</CardDescription>
+                  </CardHeader>
+  
+                  <CardContent className="flex flex-col gap-3 flex-1">
+                    {/* Pricing */}
+                    <div className="grid grid-cols-3 gap-2 text-xs">
+                      <div>
+                        <p className="text-muted-foreground">Rate</p>
+                        <p className="font-mono font-medium">{d.royaltyPerEpoch} USDC/epoch</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Max epochs</p>
+                        <p className="font-mono font-medium">{d.maxEpochsPerRun}/session</p>
+                      </div>
+                      <div>
+                        <p className="text-muted-foreground">Max sessions</p>
+                        <p className="font-mono font-medium">{d.maxRunsPerRequester}/researcher</p>
+                      </div>
                     </div>
-                  </div>
-                  <CardDescription className="text-xs mt-1 line-clamp-2">{d.description}</CardDescription>
-                </CardHeader>
-
-                <CardContent className="flex flex-col gap-3 flex-1">
-                  {/* Pricing */}
-                  <div className="grid grid-cols-3 gap-2 text-xs">
+  
+                    <Separator />
+  
+                    {/* Purposes */}
                     <div>
-                      <p className="text-muted-foreground">Rate</p>
-                      <p className="font-mono font-medium">{d.royaltyPerEpoch} lUSD/epoch</p>
+                      <p className="text-xs text-muted-foreground mb-1.5">Allowed purposes</p>
+                      <div className="flex flex-wrap gap-1">
+                        {d.allowedPurposeIds.map((pid: string) => (
+                          <Badge key={pid} variant="secondary" className="text-[10px] h-4 font-mono">
+                            {getPurposeLabel(pid)}
+                          </Badge>
+                        ))}
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-muted-foreground">Max epochs</p>
-                      <p className="font-mono font-medium">{d.maxEpochsPerRun}/session</p>
-                    </div>
-                    <div>
-                      <p className="text-muted-foreground">Max sessions</p>
-                      <p className="font-mono font-medium">{d.maxRunsPerRequester}/researcher</p>
-                    </div>
-                  </div>
-
-                  <Separator />
-
-                  {/* Purposes */}
-                  <div>
-                    <p className="text-xs text-muted-foreground mb-1.5">Allowed purposes</p>
-                    <div className="flex flex-wrap gap-1">
-                      {d.allowedPurposeIds.map((pid: string) => (
-                        <Badge key={pid} variant="secondary" className="text-[10px] h-4 font-mono">
-                          {getPurposeLabel(pid)}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div className="flex items-center justify-between mt-auto pt-2">
-                    <span className="text-xs text-muted-foreground">
-                      {d.openRequesters ? "Open to all" : "Restricted access"}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <Button asChild size="sm" variant="ghost" className="h-7 text-xs">
-                        <Link href={`/app/marketplace/${d.datasetRoot}`}>
-                          Details
-                          <ArrowRightIcon data-icon="inline-end" />
-                        </Link>
-                      </Button>
-                      {isOwner ? (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled>
-                          You own this
-                        </Button>
-                      ) : !d.active ? (
-                        <Button size="sm" variant="outline" className="h-7 text-xs" disabled>
-                          Unavailable
-                        </Button>
-                      ) : (
-                        <Button asChild size="sm" className="h-7 text-xs">
-                          <Link href={`/app/marketplace/${d.datasetRoot}/request`}>
-                            Start training
+  
+                    <div className="flex items-center justify-between mt-auto pt-2">
+                      <span className="text-xs text-muted-foreground">
+                        {d.openRequesters ? "Open to all" : "Restricted access"}
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <Button asChild size="sm" variant="ghost" className="h-7 text-xs">
+                          <Link href={`/app/marketplace/${d.datasetRoot}`}>
+                            Details
+                            <ArrowRightIcon data-icon="inline-end" />
                           </Link>
                         </Button>
-                      )}
+                        {isOwner ? (
+                          <Button size="sm" variant="outline" className="h-7 text-xs" disabled>
+                            You own this
+                          </Button>
+                        ) : !d.active ? (
+                          <Button size="sm" variant="outline" className="h-7 text-xs" disabled>
+                            Unavailable
+                          </Button>
+                        ) : (
+                          <Button asChild size="sm" className="h-7 text-xs">
+                            <Link href={`/app/marketplace/${d.datasetRoot}/request`}>
+                              Start training
+                            </Link>
+                          </Button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );

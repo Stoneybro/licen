@@ -80,7 +80,7 @@ async function fetchJobData(jobId: string) {
     }
   `;
   try {
-    const res = await fetch("http://localhost:8080/v1/graphql", {
+    const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
@@ -116,7 +116,7 @@ async function hydrateJob(jobId: string) {
       args: [data.job.datasetRoot as `0x${string}`],
     });
     policyDetails = policy;
-    const royaltyPerEpoch = policy[3] || 0n;
+    const royaltyPerEpoch = policy[3] || BigInt(0);
     const total = royaltyPerEpoch * BigInt(data.job.requestedEpochs);
     escrow = formatUnits(total, 18);
   } catch (err) {
@@ -329,12 +329,12 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                 <CardTitle className="text-sm font-medium">Payment Ledger</CardTitle>
               </CardHeader>
               <CardContent className="flex flex-col gap-2">
-                <LedgerRow label="Locked" value={`${job.escrow} lUSD`} txHash={job.events.find((e: any) => e.eventType === "AccessGranted")?.txHash} />
+                <LedgerRow label="Locked" value={`${job.escrow} USDC`} txHash={job.events.find((e: any) => e.eventType === "AccessGranted")?.txHash} />
                 {job.royaltySettled && (
-                  <LedgerRow label="Settled to publisher" value={`${formatUnits(BigInt(job.royaltySettled), 18)} lUSD`} txHash={job.events.find((e: any) => e.eventType === "RoyaltySettled")?.txHash} />
+                  <LedgerRow label="Settled to publisher" value={`${formatUnits(BigInt(job.royaltySettled), 18)} USDC`} txHash={job.events.find((e: any) => e.eventType === "RoyaltySettled")?.txHash} />
                 )}
                 {job.refundIssued && (
-                  <LedgerRow label="Refunded to you" value={`${formatUnits(BigInt(job.refundIssued), 18)} lUSD`} txHash={job.events.find((e: any) => e.eventType === "RefundIssued")?.txHash} />
+                  <LedgerRow label="Refunded to you" value={`${formatUnits(BigInt(job.refundIssued), 18)} USDC`} txHash={job.events.find((e: any) => e.eventType === "RefundIssued")?.txHash} />
                 )}
                 {!job.royaltySettled && !job.refundIssued && (
                   <p className="text-xs text-muted-foreground">Settlement pending job completion.</p>
@@ -343,7 +343,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Net cost</span>
                   <span className="font-mono font-medium">
-                    {job.royaltySettled ? formatUnits(BigInt(job.royaltySettled), 18) : "pending"} lUSD
+                    {job.royaltySettled ? formatUnits(BigInt(job.royaltySettled), 18) : "pending"} USDC
                   </span>
                 </div>
               </CardContent>
@@ -431,7 +431,7 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                 <InfoRow label="Dataset" value={job.datasetRoot} mono />
                 <InfoRow label="Manifest" value={job.policySnapshot?.manifestHash ?? "—"} mono />
                 <Separator />
-                <InfoRow label="Rate" value={`${job.policySnapshot?.royaltyPerEpoch ?? "—"} lUSD/epoch`} mono={false} />
+                <InfoRow label="Rate" value={`${job.policySnapshot?.royaltyPerEpoch ?? "—"} USDC/epoch`} mono={false} />
                 <InfoRow label="Session window" value={`${job.policySnapshot?.accessTtlSeconds ?? "—"}s`} mono={false} />
                 <InfoRow label="Expires" value={job.policySnapshot?.policyExpiry.split("T")[0] ?? "—"} mono={false} />
                 {needsRefund && (

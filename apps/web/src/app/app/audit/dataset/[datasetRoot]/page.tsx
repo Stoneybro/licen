@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
-import { MOCK_DATASETS, MOCK_JOBS, PURPOSES } from "@/lib/mock";
+
+const MOCK_JOBS: any[] = [];
+const MOCK_DATASETS: any[] = [];
 
 function getPurposeLabel(id: string) {
   return PURPOSES.find((p) => p.id === id)?.label ?? id.slice(0, 8);
@@ -65,11 +67,11 @@ export default async function AuditDatasetPage({ params }: { params: Promise<{ d
             <Separator />
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Rate</span>
-              <span className="font-mono font-medium">{dataset.royaltyPerEpoch} lUSD/epoch</span>
+              <span className="font-mono font-medium">{dataset.royaltyPerEpoch} USDC/epoch</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Lifetime royalties settled</span>
-              <span className="font-mono font-medium">{dataset.lifetimeRoyalties} lUSD</span>
+              <span className="font-mono font-medium">{dataset.lifetimeRoyalties} USDC</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Total access jobs</span>
@@ -106,7 +108,7 @@ export default async function AuditDatasetPage({ params }: { params: Promise<{ d
                 </div>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="font-mono text-xs">{j.escrow} lUSD</span>
+                <span className="font-mono text-xs">{j.escrow} USDC</span>
                 <JobStateBadge state={j.state} />
               </div>
             </Link>

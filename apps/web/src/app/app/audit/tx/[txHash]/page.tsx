@@ -7,7 +7,9 @@ import { Separator } from "@/components/ui/separator";
 import { Button } from "@/components/ui/button";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
-import { MOCK_JOBS } from "@/lib/mock";
+
+const MOCK_JOBS: any[] = [];
+const MOCK_DATASETS: any[] = [];
 
 export default async function AuditTxPage({ params }: { params: Promise<{ txHash: string }> }) {
   const { txHash } = await params;

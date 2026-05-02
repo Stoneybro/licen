@@ -8,7 +8,9 @@ import { Button } from "@/components/ui/button";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
-import { MOCK_JOBS, MOCK_DATASETS } from "@/lib/mock";
+
+const MOCK_JOBS: any[] = [];
+const MOCK_DATASETS: any[] = [];
 
 export default async function AuditJobPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await params;
@@ -77,15 +79,15 @@ export default async function AuditJobPage({ params }: { params: Promise<{ jobId
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Escrow locked</span>
-              <span className="font-mono font-medium">{job.escrow} lUSD</span>
+              <span className="font-mono font-medium">{job.escrow} USDC</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Settled royalty</span>
-              <span className="font-mono font-medium">{job.settledAmount ? `${job.settledAmount} lUSD` : "—"}</span>
+              <span className="font-mono font-medium">{job.settledAmount ? `${job.settledAmount} USDC` : "—"}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Refund issued</span>
-              <span className="font-mono font-medium">{job.refundAmount ? `${job.refundAmount} lUSD` : "—"}</span>
+              <span className="font-mono font-medium">{job.refundAmount ? `${job.refundAmount} USDC` : "—"}</span>
             </div>
             {job.resultHash && (
               <>

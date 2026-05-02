@@ -45,3 +45,21 @@ export function updatePublishRequestStatus(requestId: string, status: PublishSta
     record: status,
   });
 }
+
+/**
+ * Look up the ECIES-encrypted key envelope for a dataset.
+ * Used by the orchestrator's /api/orchestrator/key-envelope route.
+ *
+ * In production, replace with a database query.
+ */
+export function getKeyEnvelopeByDatasetRoot(datasetRoot: string): string | null {
+  for (const { payload } of publishRequestStore.values()) {
+    if (
+      payload.datasetRoot.toLowerCase() === datasetRoot.toLowerCase() &&
+      payload.encryptedKeyEnvelope
+    ) {
+      return payload.encryptedKeyEnvelope;
+    }
+  }
+  return null;
+}

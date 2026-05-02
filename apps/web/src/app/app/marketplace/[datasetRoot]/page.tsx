@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
-import { PURPOSES } from "@/lib/publish/contracts";
+import { PURPOSES } from "@/lib/mock";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
 import { formatUnits } from "viem";
 
@@ -30,7 +30,7 @@ async function fetchDatasetFromEnvio(datasetRoot: string) {
     }
   `;
   try {
-    const res = await fetch("http://localhost:8080/v1/graphql", {
+    const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
@@ -67,10 +67,10 @@ async function hydrateDataset(datasetRoot: string) {
       active: d.active,
       label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
       description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
-      royaltyPerEpoch: formatUnits(policy[3] || 0n, 18),
+      royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
       maxEpochsPerRun: policy[4] || 0,
       maxRunsPerRequester: policy[5] || 0,
-      accessTtlSeconds: policy[6] || 0n,
+      accessTtlSeconds: policy[6] || BigInt(0),
       requireResultAttestation: policy[8] || false,
       openRequesters: policy[10] || false,
       allowedPurposeIds: ["0x6e657572616c5f72657365617263680000000000000000000000000000000000"],
@@ -128,7 +128,7 @@ export default async function MarketplaceDetailPage({ params }: { params: Promis
             <CardContent className="flex flex-col gap-2 text-xs">
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Rate</span>
-                <span className="font-mono font-medium">{dataset.royaltyPerEpoch} lUSD/epoch</span>
+                <span className="font-mono font-medium">{dataset.royaltyPerEpoch} USDC/epoch</span>
               </div>
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Max epochs/session</span>

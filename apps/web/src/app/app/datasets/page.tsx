@@ -1,3 +1,6 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
 import { PlusIcon, InfoIcon, DatabaseIcon } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -6,12 +9,100 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
-import { MOCK_DATASETS } from "@/lib/mock";
-
-const ME = "0x4f3a8b2c1d9e6f7a0b5c3d2e1f8a9b4c5d6e7f80";
+import { usePrivy } from "@privy-io/react-auth";
+import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
+import { formatUnits } from "viem";
 
 export default function DatasetsPage() {
-  const myDatasets = MOCK_DATASETS.filter((d) => d.owner === ME);
+  const { user } = usePrivy();
+  const walletAddress = user?.wallet?.address;
+
+  const [myDatasets, setMyDatasets] = React.useState<any[]>([]);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    async function fetchMyDatasets() {
+      if (!walletAddress) return;
+      try {
+        const query = `
+          query GetMyDatasets {
+            Dataset(where: { owner: { _ilike: "${walletAddress}" } }, order_by: { timestamp: desc }) {
+              id
+              owner
+              manifestHash
+              active
+              timestamp
+            }
+          }
+        `;
+        const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ query }),
+        });
+        const json = await res.json();
+        const indexerDatasets = json.data?.Dataset || [];
+
+        const publicClient = getOgPublicClient();
+        const policyAddress = getDataPolicyAddress();
+
+        const hydrated = await Promise.all(
+          indexerDatasets.map(async (d: any) => {
+            try {
+              const policy: any = await publicClient.readContract({
+                address: policyAddress,
+                abi: DATA_POLICY_ABI,
+                functionName: "policies",
+                args: [d.id as `0x${string}`],
+              });
+
+              return {
+                datasetRoot: d.id,
+                active: d.active,
+                label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
+                description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
+                royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
+                maxEpochsPerRun: Number(policy[4] || 0),
+                maxRunsPerRequester: Number(policy[5] || 0),
+                openRequesters: policy[10] || false,
+                requireResultAttestation: policy[8] || false,
+                lifetimeRoyalties: "0",
+                jobCount: 0,
+                activeJobCount: 0,
+                policyExpiry: "2026-12-31T00:00:00Z"
+              };
+            } catch (err) {
+              console.error(err);
+              return null;
+            }
+          })
+        );
+
+        setMyDatasets(hydrated.filter(Boolean));
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    if (walletAddress) {
+      fetchMyDatasets();
+    } else {
+      setLoading(false);
+    }
+  }, [walletAddress]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-full">
+        <AppTopbar title="My Datasets" />
+        <div className="flex-1 p-6 flex items-center justify-center">
+          <p className="text-sm text-muted-foreground">Loading your datasets...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col min-h-full">
@@ -85,12 +176,12 @@ export default function DatasetsPage() {
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div className="flex flex-col gap-0.5">
                       <span className="text-muted-foreground">Rate</span>
-                      <span className="font-mono font-medium">{d.royaltyPerEpoch} lUSD/epoch</span>
+                      <span className="font-mono font-medium">{d.royaltyPerEpoch} USDC/epoch</span>
                       <span className="text-[10px] text-muted-foreground/60">charged per epoch run</span>
                     </div>
                     <div className="flex flex-col gap-0.5">
                       <span className="text-muted-foreground">Royalties earned</span>
-                      <span className="font-mono font-medium">{d.lifetimeRoyalties} lUSD</span>
+                      <span className="font-mono font-medium">{d.lifetimeRoyalties} USDC</span>
                       <span className="text-[10px] text-muted-foreground/60">settled lifetime</span>
                     </div>
                     <div className="flex flex-col gap-0.5">
@@ -124,7 +215,7 @@ export default function DatasetsPage() {
 
                   <div className="flex items-center justify-between">
                     <p className="text-[11px] text-muted-foreground/60">
-                      {d.openRequesters ? "Open to all researchers" : `${d.allowedRequesters.length} approved researcher${d.allowedRequesters.length !== 1 ? "s" : ""}`}
+                      {d.openRequesters ? "Open to all researchers" : `Specific researchers`}
                       {d.requireResultAttestation ? " · proof required" : ""}
                     </p>
                     <Button asChild size="sm" variant="ghost" className="h-6 text-xs">

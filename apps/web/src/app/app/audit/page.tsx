@@ -5,7 +5,9 @@ import { Badge } from "@/components/ui/badge";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
-import { MOCK_JOBS, MOCK_DATASETS } from "@/lib/mock";
+
+const MOCK_JOBS: any[] = [];
+const MOCK_DATASETS: any[] = [];
 
 const RECENT_EVENTS = MOCK_JOBS.flatMap((j) =>
   j.events.map((e) => ({ ...e, jobId: j.jobId, datasetLabel: j.datasetLabel }))
@@ -79,9 +81,9 @@ export default function AuditPage() {
         {/* Shortcut cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { label: "By Job", href: `/app/audit/job/${MOCK_JOBS[0].jobId}`, desc: "Full lifecycle of a single training job" },
-            { label: "By Dataset", href: `/app/audit/dataset/${MOCK_DATASETS[0].datasetRoot}`, desc: "All jobs and events for a dataset" },
-            { label: "By Tx", href: `/app/audit/tx/${MOCK_JOBS[0].events[0].txHash}`, desc: "Decode a single transaction hash" },
+            { label: "By Job", href: `/app/audit/job/${MOCK_JOBS[0]?.jobId || "0x"}`, desc: "Full lifecycle of a single training job" },
+            { label: "By Dataset", href: `/app/audit/dataset/${MOCK_DATASETS[0]?.datasetRoot || "0x"}`, desc: "All jobs and events for a dataset" },
+            { label: "By Tx", href: `/app/audit/tx/${MOCK_JOBS[0]?.events?.[0]?.txHash || "0x"}`, desc: "Decode a single transaction hash" },
           ].map((c) => (
             <Link key={c.label} href={c.href}>
               <Card className="h-full hover:border-foreground/20 transition-colors cursor-pointer">

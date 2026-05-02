@@ -178,10 +178,10 @@ export const MOCK_JOBS: MockJob[] = [
     updatedAt: "2026-04-20T11:47:00Z",
     events: [
       { topic: "AccessRequested", txHash: "0xtx001aa", blockNumber: 1048201, timestamp: "2026-04-20T09:12:00Z", args: { jobId: "0xjob001...", requester: ME, epochs: "10" } },
-      { topic: "AccessGranted", txHash: "0xtx001bb", blockNumber: 1048209, timestamp: "2026-04-20T09:13:24Z", args: { jobId: "0xjob001...", escrow: "500 lUSD" } },
+      { topic: "AccessGranted", txHash: "0xtx001bb", blockNumber: 1048209, timestamp: "2026-04-20T09:13:24Z", args: { jobId: "0xjob001...", escrow: "500 USDC" } },
       { topic: "JobStarted", txHash: "0xtx001cc", blockNumber: 1048230, timestamp: "2026-04-20T09:16:08Z", args: { jobId: "0xjob001...", provider: "0xprov1" } },
       { topic: "JobCompleted", txHash: "0xtx001dd", blockNumber: 1049812, timestamp: "2026-04-20T11:45:30Z", args: { jobId: "0xjob001...", actualEpochs: "10" } },
-      { topic: "RoyaltySettled", txHash: "0xtx001ee", blockNumber: 1049820, timestamp: "2026-04-20T11:47:00Z", args: { jobId: "0xjob001...", amount: "500 lUSD" } },
+      { topic: "RoyaltySettled", txHash: "0xtx001ee", blockNumber: 1049820, timestamp: "2026-04-20T11:47:00Z", args: { jobId: "0xjob001...", amount: "500 USDC" } },
     ],
   },
   {
@@ -205,7 +205,7 @@ export const MOCK_JOBS: MockJob[] = [
     updatedAt: "2026-04-22T14:52:00Z",
     events: [
       { topic: "AccessRequested", txHash: "0xtx002aa", blockNumber: 1051100, timestamp: "2026-04-22T14:30:00Z", args: { jobId: "0xjob002...", requester: ME, epochs: "15" } },
-      { topic: "AccessGranted", txHash: "0xtx002bb", blockNumber: 1051108, timestamp: "2026-04-22T14:31:10Z", args: { jobId: "0xjob002...", escrow: "750 lUSD" } },
+      { topic: "AccessGranted", txHash: "0xtx002bb", blockNumber: 1051108, timestamp: "2026-04-22T14:31:10Z", args: { jobId: "0xjob002...", escrow: "750 USDC" } },
       { topic: "JobStarted", txHash: "0xtx002cc", blockNumber: 1051140, timestamp: "2026-04-22T14:35:44Z", args: { jobId: "0xjob002...", provider: "0xprov2" } },
     ],
   },
@@ -230,7 +230,7 @@ export const MOCK_JOBS: MockJob[] = [
     updatedAt: "2026-04-23T08:11:30Z",
     events: [
       { topic: "AccessRequested", txHash: "0xtx003aa", blockNumber: 1052400, timestamp: "2026-04-23T08:10:00Z", args: { jobId: "0xjob003...", requester: ME, epochs: "8" } },
-      { topic: "AccessGranted", txHash: "0xtx003bb", blockNumber: 1052407, timestamp: "2026-04-23T08:11:30Z", args: { jobId: "0xjob003...", escrow: "240 lUSD" } },
+      { topic: "AccessGranted", txHash: "0xtx003bb", blockNumber: 1052407, timestamp: "2026-04-23T08:11:30Z", args: { jobId: "0xjob003...", escrow: "240 USDC" } },
     ],
   },
   {
@@ -254,10 +254,10 @@ export const MOCK_JOBS: MockJob[] = [
     updatedAt: "2026-04-18T16:20:00Z",
     events: [
       { topic: "AccessRequested", txHash: "0xtx004aa", blockNumber: 1044200, timestamp: "2026-04-18T11:00:00Z", args: { jobId: "0xjob004...", requester: ME, epochs: "12" } },
-      { topic: "AccessGranted", txHash: "0xtx004bb", blockNumber: 1044209, timestamp: "2026-04-18T11:01:20Z", args: { jobId: "0xjob004...", escrow: "960 lUSD" } },
+      { topic: "AccessGranted", txHash: "0xtx004bb", blockNumber: 1044209, timestamp: "2026-04-18T11:01:20Z", args: { jobId: "0xjob004...", escrow: "960 USDC" } },
       { topic: "JobStarted", txHash: "0xtx004cc", blockNumber: 1044240, timestamp: "2026-04-18T11:06:00Z", args: { jobId: "0xjob004...", provider: "0xprov1" } },
       { topic: "JobFailed", txHash: "0xtx004dd", blockNumber: 1045900, timestamp: "2026-04-18T13:50:00Z", args: { jobId: "0xjob004...", reasonCode: "COMPUTE_OOM" } },
-      { topic: "RefundIssued", txHash: "0xtx004ee", blockNumber: 1046100, timestamp: "2026-04-18T16:20:00Z", args: { jobId: "0xjob004...", amount: "400 lUSD" } },
+      { topic: "RefundIssued", txHash: "0xtx004ee", blockNumber: 1046100, timestamp: "2026-04-18T16:20:00Z", args: { jobId: "0xjob004...", amount: "400 USDC" } },
     ],
   },
   {
@@ -281,9 +281,9 @@ export const MOCK_JOBS: MockJob[] = [
     updatedAt: "2026-04-15T21:10:00Z",
     events: [
       { topic: "AccessRequested", txHash: "0xtx005aa", blockNumber: 1038700, timestamp: "2026-04-15T15:20:00Z", args: { jobId: "0xjob005...", requester: ME, epochs: "6" } },
-      { topic: "AccessGranted", txHash: "0xtx005bb", blockNumber: 1038709, timestamp: "2026-04-15T15:21:10Z", args: { jobId: "0xjob005...", escrow: "360 lUSD" } },
+      { topic: "AccessGranted", txHash: "0xtx005bb", blockNumber: 1038709, timestamp: "2026-04-15T15:21:10Z", args: { jobId: "0xjob005...", escrow: "360 USDC" } },
       { topic: "JobTimedOut", txHash: "0xtx005cc", blockNumber: 1040200, timestamp: "2026-04-15T18:45:00Z", args: { jobId: "0xjob005...", reason: "TTL_EXCEEDED" } },
-      { topic: "RefundIssued", txHash: "0xtx005dd", blockNumber: 1040510, timestamp: "2026-04-15T21:10:00Z", args: { jobId: "0xjob005...", amount: "360 lUSD" } },
+      { topic: "RefundIssued", txHash: "0xtx005dd", blockNumber: 1040510, timestamp: "2026-04-15T21:10:00Z", args: { jobId: "0xjob005...", amount: "360 USDC" } },
     ],
   },
 ];

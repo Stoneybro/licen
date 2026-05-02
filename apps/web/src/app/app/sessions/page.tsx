@@ -30,7 +30,7 @@ async function fetchJobsFromEnvio() {
     }
   `;
   try {
-    const res = await fetch("http://localhost:8080/v1/graphql", {
+    const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
@@ -60,7 +60,7 @@ async function hydrateJobs() {
           functionName: "policies",
           args: [j.datasetRoot as `0x${string}`],
         });
-        const royaltyPerEpoch = policy[3] || 0n;
+        const royaltyPerEpoch = policy[3] || BigInt(0);
         const total = royaltyPerEpoch * BigInt(j.requestedEpochs);
         escrow = formatUnits(total, 18);
       } catch (err) {
@@ -108,63 +108,77 @@ export default async function SessionsPage() {
           </p>
         </div>
 
-        <Card>
-          <CardContent className="p-0">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="pl-6 text-xs">Session ID</TableHead>
-                  <TableHead className="text-xs">Dataset</TableHead>
-                  <TableHead className="text-xs">Purpose</TableHead>
-                  <TableHead className="text-xs">Provider</TableHead>
-                  <TableHead className="text-xs text-center">Epochs</TableHead>
-                  <TableHead className="text-xs text-right">Payment locked</TableHead>
-                  <TableHead className="text-xs">Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {jobs.map((j) => (
-                  <TableRow key={j.jobId} className="cursor-pointer hover:bg-muted/40">
-                    <TableCell className="pl-6">
-                      <Link href={`/app/sessions/${j.jobId}`} className="block">
-                        <HashChip hash={j.jobId} front={8} back={6} />
-                        <p className="text-[10px] text-muted-foreground mt-0.5">{j.createdAt.split("T")[0]}</p>
-                      </Link>
-                    </TableCell>
-                    <TableCell className="max-w-[160px]">
-                      <p className="text-xs truncate">{j.datasetLabel}</p>
-                      <HashChip hash={j.datasetRoot} className="mt-0.5" />
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                        {j.purposeLabel}
-                      </span>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{j.providerId}</TableCell>
-                    <TableCell className="text-center font-mono text-xs">
-                      {j.actualEpochs !== null ? (
-                        <span>
-                          {j.actualEpochs}
-                          {j.actualEpochs !== j.requestedEpochs && (
-                            <span className="text-muted-foreground">/{j.requestedEpochs}</span>
-                          )}
-                        </span>
-                      ) : (
-                        <span className="text-muted-foreground">{j.requestedEpochs} req</span>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-right font-mono text-xs">
-                      {j.escrow} lUSD
-                    </TableCell>
-                    <TableCell>
-                      <JobStateBadge state={j.state as any} />
-                    </TableCell>
+        {jobs.length === 0 ? (
+          <Card className="border-dashed mt-4">
+            <CardContent className="flex flex-col items-center gap-3 py-12 text-center">
+              <InfoIcon className="size-8 text-muted-foreground/40" />
+              <div>
+                <p className="text-sm font-medium">No sessions yet</p>
+                <p className="text-xs text-muted-foreground mt-1 max-w-[36ch]">
+                  You have not requested any training sessions. Head to the Marketplace to find a dataset and start training.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card>
+            <CardContent className="p-0">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead className="pl-6 text-xs">Session ID</TableHead>
+                    <TableHead className="text-xs">Dataset</TableHead>
+                    <TableHead className="text-xs">Purpose</TableHead>
+                    <TableHead className="text-xs">Provider</TableHead>
+                    <TableHead className="text-xs text-center">Epochs</TableHead>
+                    <TableHead className="text-xs text-right">Payment locked</TableHead>
+                    <TableHead className="text-xs">Status</TableHead>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </CardContent>
-        </Card>
+                </TableHeader>
+                <TableBody>
+                  {jobs.map((j) => (
+                    <TableRow key={j.jobId} className="cursor-pointer hover:bg-muted/40">
+                      <TableCell className="pl-6">
+                        <Link href={`/app/sessions/${j.jobId}`} className="block">
+                          <HashChip hash={j.jobId} front={8} back={6} />
+                          <p className="text-[10px] text-muted-foreground mt-0.5">{j.createdAt.split("T")[0]}</p>
+                        </Link>
+                      </TableCell>
+                      <TableCell className="max-w-[160px]">
+                        <p className="text-xs truncate">{j.datasetLabel}</p>
+                        <HashChip hash={j.datasetRoot} className="mt-0.5" />
+                      </TableCell>
+                      <TableCell>
+                        <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                          {j.purposeLabel}
+                        </span>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{j.providerId}</TableCell>
+                      <TableCell className="text-center font-mono text-xs">
+                        {j.actualEpochs !== null ? (
+                          <span>
+                            {j.actualEpochs}
+                            {j.actualEpochs !== j.requestedEpochs && (
+                              <span className="text-muted-foreground">/{j.requestedEpochs}</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-muted-foreground">{j.requestedEpochs} req</span>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono text-xs">
+                        {j.escrow} USDC
+                      </TableCell>
+                      <TableCell>
+                        <JobStateBadge state={j.state as any} />
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        )}
       </div>
     </div>
   );

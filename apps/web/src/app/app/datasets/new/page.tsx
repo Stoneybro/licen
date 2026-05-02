@@ -8,7 +8,7 @@ import {
   UploadCloud, Info, DollarSign,
   Repeat, Users, Clock, CalendarX, X, CheckCircle2, Lock,
   FileJson, LineChart, Palette, Cpu,
-  Copy, Download, Check
+  Copy, Check
 } from "lucide-react";
 import { encodeFunctionData, isAddress, type Address, type Hex } from "viem";
 import { AppTopbar } from "@/components/app/app-topbar";
@@ -32,7 +32,7 @@ import {
   type PublishSubmitSuccessResponse,
   type PublishPolicyConfig,
 } from "@/lib/publish/contracts";
-import { encryptDatasetFile } from "@/lib/publish/encryption";
+import { encryptDatasetFile, sealKeyEnvelope } from "@/lib/publish/encryption";
 import { buildRegisterDatasetArgs, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
 
 const OPTIONAL_MANIFEST_SECTIONS = [
@@ -161,7 +161,7 @@ export default function NewDatasetPage() {
 
   const [requestId, setRequestId] = useState<string | null>(null);
   const [status, setStatus] = useState<PublishStatusResponse["status"] | null>(null);
-  const [encryptionKeyData, setEncryptionKeyData] = useState<{ datasetRoot: string; ivHex: string; keyHex: string } | null>(null);
+  const [sealedKeyData, setSealedKeyData] = useState<{ datasetRoot: string; encryptedKeyEnvelope: string } | null>(null);
   
   const [copied, setCopied] = useState(false);
 
@@ -227,22 +227,11 @@ export default function NewDatasetPage() {
   }, [requestId]);
 
   const handleCopy = () => {
-    if (encryptionKeyData) {
-      navigator.clipboard.writeText(JSON.stringify(encryptionKeyData, null, 2));
+    if (sealedKeyData) {
+      navigator.clipboard.writeText(sealedKeyData.encryptedKeyEnvelope);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     }
-  };
-
-  const handleDownloadKeys = () => {
-    if (!encryptionKeyData) return;
-    const blob = new Blob([JSON.stringify(encryptionKeyData, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `dataset-keys-${encryptionKeyData.datasetRoot.slice(0, 8)}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
   };
 
   const handlePublish = async () => {
@@ -280,15 +269,15 @@ export default function NewDatasetPage() {
       setPublishProgress(10);
       window.scrollTo({ top: 0, behavior: "smooth" });
 
-      // Step 1: Encrypt
+      // Step 1: Encrypt dataset on-device
       setPublishingStep("Securing dataset on your device...");
       setPublishProgress(20);
       const encrypted = await encryptDatasetFile(selectedFile);
-      setEncryptionKeyData(null);
+      setSealedKeyData(null);
 
       // Step 2: Upload encrypted dataset to 0G Storage
       setPublishingStep("Uploading secured dataset...");
-      setPublishProgress(40);
+      setPublishProgress(35);
       const datasetUploadForm = new FormData();
       datasetUploadForm.append("file", encrypted.encryptedBlob, `${encrypted.fileName}.enc`);
       const datasetUploadRes = await fetch("/api/publish/dataset/upload", {
@@ -301,7 +290,18 @@ export default function NewDatasetPage() {
       }
       const datasetUploadData = (await datasetUploadRes.json()) as { datasetRoot: `0x${string}` };
       const datasetRoot = datasetUploadData.datasetRoot;
-      setEncryptionKeyData({ datasetRoot, ivHex: encrypted.ivHex, keyHex: encrypted.keyHex });
+
+      // Step 2b: Seal the AES key with the orchestrator's ECIES public key (server-side)
+      // The raw keyHex is sent once to the server and immediately wrapped — it is never stored.
+      setPublishingStep("Sealing encryption key...");
+      setPublishProgress(50);
+      const sealResult = await sealKeyEnvelope(
+        encrypted.keyHex,
+        encrypted.ivHex,
+        datasetRoot,
+        walletAddress
+      );
+      setSealedKeyData({ datasetRoot, encryptedKeyEnvelope: sealResult.encryptedKeyEnvelope });
 
       // Step 3: Generate Manifest
       setPublishingStep("Saving dataset details...");
@@ -365,6 +365,7 @@ export default function NewDatasetPage() {
         manifestUri,
         txHash: "0x",
         ownerAddress: walletAddress,
+        encryptedKeyEnvelope: sealResult.encryptedKeyEnvelope,
         policy,
         idempotencyKey: `draft-${Date.now()}`,
       };
@@ -502,51 +503,48 @@ export default function NewDatasetPage() {
                    </div>
                  )}
                  
-                 {status === "accepted" && (
-                   <div className="bg-green-500/10 border border-green-500/20 p-6 rounded-xl flex items-start gap-4 text-green-700 dark:text-green-400 shadow-sm animate-in slide-in-from-top-2">
-                     <CircleCheckBig className="size-7 shrink-0 mt-0.5 text-green-600" />
-                     <div className="w-full text-left flex flex-col items-start">
-                       <h5 className="font-semibold text-xl tracking-tight text-foreground">Dataset Published Successfully</h5>
-                       <p className="text-sm mt-1 mb-5 opacity-90 font-medium text-foreground">Your dataset is now protected and successfully published to the network.</p>
-                       
-                       {encryptionKeyData && (
-                         <div className="w-full bg-background rounded-xl overflow-hidden border border-green-500/20 shadow-sm">
-                           <div className="bg-destructive/10 px-4 py-3 border-b border-destructive/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-                             <p className="text-xs font-bold text-destructive uppercase tracking-wider flex items-center gap-1.5">
-                               <ShieldCheck className="size-4" /> Important: Save your encryption keys
-                             </p>
-                             <p className="text-xs text-destructive/80 font-medium">They will not be shown again.</p>
-                           </div>
-                           
-                           <div className="p-5 flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between bg-muted/30">
-                             <div className="space-y-3 flex-1 min-w-0 w-full">
-                               <div className="grid grid-cols-[100px_1fr] gap-x-2 gap-y-3 text-sm">
-                                 <span className="text-muted-foreground font-medium flex items-center">Dataset ID:</span>
-                                 <span className="font-mono text-xs truncate bg-background px-2 py-1 rounded border inline-block max-w-[280px]">{encryptionKeyData.datasetRoot}</span>
-                                 
-                                 <span className="text-muted-foreground font-medium flex items-center">IV Hex:</span>
-                                 <span className="font-mono text-xs truncate bg-background px-2 py-1 rounded border inline-block max-w-[280px]">{encryptionKeyData.ivHex}</span>
-                                 
-                                 <span className="text-muted-foreground font-medium flex items-center">Key Hex:</span>
-                                 <span className="font-mono text-xs truncate bg-background px-2 py-1 rounded border inline-block max-w-[280px]">••••••••••••••••••••••••••••</span>
-                               </div>
-                             </div>
-                             
-                             <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto mt-2 xl:mt-0">
-                               <Button variant="default" size="sm" onClick={handleDownloadKeys} className="w-full sm:w-40 bg-destructive hover:bg-destructive/90 text-destructive-foreground shadow-sm">
-                                 <Download className="size-4 mr-2" /> Download Keys
-                               </Button>
-                               <Button variant="outline" size="sm" onClick={handleCopy} className="w-full sm:w-40 bg-background shadow-sm">
-                                 {copied ? <Check className="size-4 mr-2 text-green-500" /> : <Copy className="size-4 mr-2" />} 
-                                 {copied ? "Copied!" : "Copy Details"}
-                               </Button>
-                             </div>
-                           </div>
-                         </div>
-                       )}
-                     </div>
-                   </div>
-                 )}
+                  {status === "accepted" && (
+                    <div className="bg-green-500/10 border border-green-500/20 p-6 rounded-xl flex items-start gap-4 text-green-700 dark:text-green-400 shadow-sm animate-in slide-in-from-top-2">
+                      <CircleCheckBig className="size-7 shrink-0 mt-0.5 text-green-600" />
+                      <div className="w-full text-left flex flex-col items-start">
+                        <h5 className="font-semibold text-xl tracking-tight text-foreground">Dataset Published Successfully</h5>
+                        <p className="text-sm mt-1 mb-5 opacity-90 font-medium text-foreground">Your dataset is live on the network. The encryption key is sealed by the orchestrator and will only be released to verified training sessions.</p>
+                        
+                        {sealedKeyData && (
+                          <div className="w-full bg-background rounded-xl overflow-hidden border border-green-500/20 shadow-sm">
+                            <div className="bg-primary/5 px-4 py-3 border-b border-primary/10 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                              <p className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                                <ShieldCheck className="size-4" /> Key sealed — secured by orchestrator
+                              </p>
+                              <p className="text-xs text-muted-foreground font-medium">The raw AES key is no longer accessible.</p>
+                            </div>
+                            
+                            <div className="p-5 flex flex-col xl:flex-row gap-6 items-start xl:items-center justify-between bg-muted/30">
+                              <div className="space-y-3 flex-1 min-w-0 w-full">
+                                <div className="grid grid-cols-[120px_1fr] gap-x-2 gap-y-3 text-sm">
+                                  <span className="text-muted-foreground font-medium flex items-center">Dataset ID:</span>
+                                  <span className="font-mono text-xs truncate bg-background px-2 py-1 rounded border inline-block max-w-[280px]">{sealedKeyData.datasetRoot}</span>
+                                  
+                                  <span className="text-muted-foreground font-medium flex items-center">Key Envelope:</span>
+                                  <span className="font-mono text-xs truncate bg-background px-2 py-1 rounded border inline-block max-w-[280px]">{sealedKeyData.encryptedKeyEnvelope.slice(0, 40)}…</span>
+
+                                  <span className="text-muted-foreground font-medium flex items-center">AES Key:</span>
+                                  <span className="font-mono text-xs bg-background px-2 py-1 rounded border inline-block text-muted-foreground">••••••••••••••••••••••••••••  (sealed)</span>
+                                </div>
+                              </div>
+                              
+                              <div className="flex flex-col sm:flex-row gap-3 w-full xl:w-auto mt-2 xl:mt-0">
+                                <Button variant="outline" size="sm" onClick={handleCopy} className="w-full sm:w-40 bg-background shadow-sm">
+                                  {copied ? <Check className="size-4 mr-2 text-green-500" /> : <Copy className="size-4 mr-2" />} 
+                                  {copied ? "Copied!" : "Copy Envelope"}
+                                </Button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                </div>
              )}
 

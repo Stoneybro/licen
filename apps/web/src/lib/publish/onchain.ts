@@ -21,6 +21,25 @@ export const DATA_POLICY_ABI = [
     ],
     outputs: [],
   },
+  {
+    type: "function",
+    name: "policies",
+    stateMutability: "view",
+    inputs: [{ name: "", type: "bytes32" }],
+    outputs: [
+      { type: "address" },
+      { type: "bytes32" },
+      { type: "bytes32" },
+      { type: "uint256" },
+      { type: "uint32" },
+      { type: "uint32" },
+      { type: "uint64" },
+      { type: "uint64" },
+      { type: "bool" },
+      { type: "bool" },
+      { type: "bool" }
+    ],
+  },
 ] as const;
 
 
