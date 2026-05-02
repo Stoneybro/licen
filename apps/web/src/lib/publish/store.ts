@@ -2,10 +2,11 @@ import type {
   PublishStatusResponse,
   PublishSubmitRequest,
 } from "@/lib/publish/contracts";
+import { db } from "@/db/db";
+import { publishRequests } from "@/db/schema";
+import { eq } from "drizzle-orm";
 
-const publishRequestStore = new Map<string, { payload: PublishSubmitRequest; record: PublishStatusResponse }>();
-
-export function savePublishRequest(requestId: string, payload: PublishSubmitRequest): PublishStatusResponse {
+export async function savePublishRequest(requestId: string, payload: PublishSubmitRequest): Promise<PublishStatusResponse> {
   const now = new Date().toISOString();
 
   const record: PublishStatusResponse = {
@@ -16,50 +17,47 @@ export function savePublishRequest(requestId: string, payload: PublishSubmitRequ
     txHash: payload.txHash,
   };
 
-  publishRequestStore.set(requestId, {
-    payload,
-    record,
+  await db.insert(publishRequests).values({
+    requestId,
+    datasetRoot: payload.datasetRoot.toLowerCase(),
+    encryptedKeyEnvelope: payload.encryptedKeyEnvelope || null,
+    payload: payload,
+    record: record,
   });
 
   return record;
 }
 
-export function getPublishRequestStatus(requestId: string): PublishStatusResponse | null {
-  const stored = publishRequestStore.get(requestId);
+export async function getPublishRequestStatus(requestId: string): Promise<PublishStatusResponse | null> {
+  const stored = await db.query.publishRequests.findFirst({
+    where: eq(publishRequests.requestId, requestId),
+  });
 
   if (!stored) {
     return null;
   }
 
-  return stored.record;
+  return stored.record as PublishStatusResponse;
 }
 
-export function updatePublishRequestStatus(requestId: string, status: PublishStatusResponse): void {
-  const stored = publishRequestStore.get(requestId);
-  if (!stored) {
-    return;
-  }
-
-  publishRequestStore.set(requestId, {
-    payload: stored.payload,
-    record: status,
-  });
+export async function updatePublishRequestStatus(requestId: string, status: PublishStatusResponse): Promise<void> {
+  await db.update(publishRequests)
+    .set({
+      record: status,
+      updatedAt: new Date(),
+    })
+    .where(eq(publishRequests.requestId, requestId));
 }
 
 /**
  * Look up the ECIES-encrypted key envelope for a dataset.
  * Used by the orchestrator's /api/orchestrator/key-envelope route.
- *
- * In production, replace with a database query.
  */
-export function getKeyEnvelopeByDatasetRoot(datasetRoot: string): string | null {
-  for (const { payload } of publishRequestStore.values()) {
-    if (
-      payload.datasetRoot.toLowerCase() === datasetRoot.toLowerCase() &&
-      payload.encryptedKeyEnvelope
-    ) {
-      return payload.encryptedKeyEnvelope;
-    }
-  }
-  return null;
+export async function getKeyEnvelopeByDatasetRoot(datasetRoot: string): Promise<string | null> {
+  const stored = await db.query.publishRequests.findFirst({
+    where: eq(publishRequests.datasetRoot, datasetRoot.toLowerCase()),
+    columns: { encryptedKeyEnvelope: true },
+  });
+
+  return stored?.encryptedKeyEnvelope || null;
 }

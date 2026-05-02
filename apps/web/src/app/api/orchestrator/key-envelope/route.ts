@@ -34,7 +34,9 @@ export async function GET(req: NextRequest) {
     );
   }
 
-  const envelope = getKeyEnvelopeByDatasetRoot(datasetRoot);
+  // 3. Look up envelope in the DB
+  const envelope = await getKeyEnvelopeByDatasetRoot(datasetRoot);
+
   if (!envelope) {
     return NextResponse.json(
       { error: "Key envelope not found for this dataset" },

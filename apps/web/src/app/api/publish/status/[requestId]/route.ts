@@ -8,7 +8,7 @@ export async function GET(
   context: RouteContext<"/api/publish/status/[requestId]">
 ) {
   const { requestId } = await context.params;
-  const status = getPublishRequestStatus(requestId);
+  const status = await getPublishRequestStatus(requestId);
 
   if (!status) {
     const errorBody: ApiErrorResponse = {
@@ -48,6 +48,6 @@ export async function GET(
     };
   }
 
-  updatePublishRequestStatus(requestId, nextStatus);
+  await updatePublishRequestStatus(requestId, nextStatus);
   return Response.json(nextStatus, { status: 200 });
 }

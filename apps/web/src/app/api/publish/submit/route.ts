@@ -25,7 +25,7 @@ export async function POST(request: NextRequest) {
     }
 
     const requestId = createRequestId();
-    const saved = savePublishRequest(requestId, validated.data);
+    const saved = await savePublishRequest(requestId, validated.data);
 
     const responseBody: PublishSubmitSuccessResponse = {
       requestId,
