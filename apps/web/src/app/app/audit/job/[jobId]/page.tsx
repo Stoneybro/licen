@@ -9,15 +9,59 @@ import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
 
-const MOCK_JOBS: any[] = [];
-const MOCK_DATASETS: any[] = [];
+import type { JobState } from "@/lib/mock";
+import { formatUnits } from "viem";
+import { PUBLISH_PURPOSES } from "@/lib/publish/contracts";
 
 export default async function AuditJobPage({ params }: { params: Promise<{ jobId: string }> }) {
   const { jobId } = await params;
-  const job = MOCK_JOBS.find((j) => j.jobId === jobId);
-  if (!job) notFound();
+  const query = `
+    query GetJobDetails {
+      Job(where: { id: { _ilike: "${jobId}" } }) {
+        id
+        datasetRoot
+        requester
+        requestedEpochs
+        state
+        actualEpochs
+        resultHash
+        attestationRef
+        failReason
+        royaltySettled
+        refundIssued
+      }
+      AuditLog(where: { jobId: { _ilike: "${jobId}" } }, order_by: { timestamp: desc }) {
+        id
+        eventType
+        timestamp
+        txHash
+        details
+      }
+    }
+  `;
 
-  const dataset = MOCK_DATASETS.find((d) => d.datasetRoot === job.datasetRoot);
+  let j: any = null;
+  let jobEvents: any[] = [];
+
+  try {
+    const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const json = await res.json();
+      j = json.data?.Job?.[0];
+      jobEvents = json.data?.AuditLog || [];
+    }
+  } catch (err) {
+    console.error("Failed to fetch audit data from indexer", err);
+  }
+
+  if (!j) notFound();
+
+  const datasetLabel = `Secure Dataset ${j.datasetRoot.slice(2, 6).toUpperCase()}`;
 
   return (
     <div className="flex flex-col min-h-full">
@@ -35,9 +79,9 @@ export default async function AuditJobPage({ params }: { params: Promise<{ jobId
         <div className="flex items-start justify-between gap-4">
           <div className="flex flex-col gap-1">
             <p className="text-xs text-muted-foreground">Job ID</p>
-            <HashChip hash={job.jobId} front={14} back={10} />
+            <HashChip hash={j.id} front={14} back={10} />
           </div>
-          <JobStateBadge state={job.state} />
+          <JobStateBadge state={j.state as JobState} />
         </div>
 
         {/* Summary */}
@@ -49,59 +93,48 @@ export default async function AuditJobPage({ params }: { params: Promise<{ jobId
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Dataset</span>
               <div className="flex items-center gap-2">
-                <span className="font-medium">{dataset?.label ?? "Unknown"}</span>
-                <HashChip hash={job.datasetRoot} />
+                <span className="font-medium">{datasetLabel}</span>
+                <HashChip hash={j.datasetRoot} />
               </div>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Requester</span>
-              <HashChip hash={job.requester} front={10} back={8} />
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Provider</span>
-              <div className="flex items-center gap-2">
-                <span className="font-medium">{job.providerId}</span>
-                <HashChip hash={job.provider} />
-              </div>
+              <HashChip hash={j.requester} front={10} back={8} />
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Purpose</span>
-              <Badge variant="secondary" className="font-mono text-[10px] h-4">{job.purposeLabel}</Badge>
+              <Badge variant="secondary" className="font-mono text-[10px] h-4">Neural Research</Badge>
             </div>
             <Separator />
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Requested epochs</span>
-              <span className="font-mono font-medium">{job.requestedEpochs}</span>
+              <span className="font-mono font-medium">{j.requestedEpochs}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Actual epochs run</span>
-              <span className="font-mono font-medium">{job.actualEpochs ?? "—"}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Escrow locked</span>
-              <span className="font-mono font-medium">{job.escrow} USDC</span>
+              <span className="font-mono font-medium">{j.actualEpochs ?? "—"}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Settled royalty</span>
-              <span className="font-mono font-medium">{job.settledAmount ? `${job.settledAmount} USDC` : "—"}</span>
+              <span className="font-mono font-medium">{j.royaltySettled ? `${formatUnits(BigInt(j.royaltySettled), 18)} USDC` : "—"}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Refund issued</span>
-              <span className="font-mono font-medium">{job.refundAmount ? `${job.refundAmount} USDC` : "—"}</span>
+              <span className="font-mono font-medium">{j.refundIssued ? `${formatUnits(BigInt(j.refundIssued), 18)} USDC` : "—"}</span>
             </div>
-            {job.resultHash && (
+            {j.resultHash && (
               <>
                 <Separator />
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Result hash</span>
-                  <HashChip hash={job.resultHash} front={10} back={8} />
+                  <HashChip hash={j.resultHash} front={10} back={8} />
                 </div>
               </>
             )}
-            {job.attestationRef && (
+            {j.attestationRef && (
               <div className="flex items-center justify-between">
                 <span className="text-muted-foreground">Attestation ref</span>
-                <HashChip hash={job.attestationRef} front={10} back={8} />
+                <HashChip hash={j.attestationRef} front={10} back={8} />
               </div>
             )}
           </CardContent>
@@ -113,33 +146,37 @@ export default async function AuditJobPage({ params }: { params: Promise<{ jobId
             <CardTitle className="text-sm font-medium">On-chain Event Log</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-0 p-0">
-            {job.events.map((e, i) => (
-              <div key={i} className="flex items-start gap-3 px-6 py-3 border-b border-border last:border-0">
-                <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
-                  <div className="size-1.5 rounded-full bg-muted-foreground" />
-                  {i < job.events.length - 1 && <div className="w-px h-6 bg-border" />}
-                </div>
-                <div className="flex-1 min-w-0 flex flex-col gap-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Badge variant="secondary" className="font-mono text-[10px] h-4">{e.topic}</Badge>
-                    <span className="text-[10px] text-muted-foreground">block #{e.blockNumber.toLocaleString()}</span>
-                    <span className="text-[10px] text-muted-foreground">{e.timestamp.replace("T", " ").slice(0, 19)} UTC</span>
+            {jobEvents.map((e: any, i: number) => {
+              const args = e.details ? JSON.parse(e.details) : {};
+              return (
+                <div key={i} className="flex items-start gap-3 px-6 py-3 border-b border-border last:border-0">
+                  <div className="flex flex-col items-center gap-1 shrink-0 pt-0.5">
+                    <div className="size-1.5 rounded-full bg-muted-foreground" />
+                    {i < jobEvents.length - 1 && <div className="w-px h-6 bg-border" />}
                   </div>
-                  <div className="flex items-center gap-2">
-                    <Link href={`/app/audit/tx/${e.txHash}`} className="hover:underline">
-                      <HashChip hash={e.txHash} front={10} back={8} />
-                    </Link>
-                  </div>
-                  <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
-                    {Object.entries(e.args).map(([k, v]) => (
-                      <span key={k} className="text-[10px] text-muted-foreground">
-                        <span className="text-foreground/60">{k}:</span> {v}
+                  <div className="flex-1 min-w-0 flex flex-col gap-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <Badge variant="secondary" className="font-mono text-[10px] h-4">{e.eventType}</Badge>
+                      <span className="text-[10px] text-muted-foreground">
+                        {new Date(Number(e.timestamp) * 1000).toLocaleString()} UTC
                       </span>
-                    ))}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Link href={`/app/audit/tx/${e.txHash}`} className="hover:underline">
+                        <HashChip hash={e.txHash} front={10} back={8} />
+                      </Link>
+                    </div>
+                    <div className="flex flex-wrap gap-x-4 gap-y-0.5 mt-0.5">
+                      {Object.entries(args).map(([k, v]) => (
+                        <span key={k} className="text-[10px] text-muted-foreground">
+                          <span className="text-foreground/60">{k}:</span> {String(v)}
+                        </span>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </CardContent>
         </Card>
 

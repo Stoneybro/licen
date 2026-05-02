@@ -8,21 +8,44 @@ import { Button } from "@/components/ui/button";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 
-const MOCK_JOBS: any[] = [];
-const MOCK_DATASETS: any[] = [];
 
 export default async function AuditTxPage({ params }: { params: Promise<{ txHash: string }> }) {
   const { txHash } = await params;
 
-  const match = MOCK_JOBS.flatMap((j) =>
-    j.events
-      .filter((e) => e.txHash === txHash)
-      .map((e) => ({ event: e, job: j }))
-  )[0];
+  const query = `
+    query GetAuditLog {
+      AuditLog(where: { txHash: { _ilike: "${txHash}" } }) {
+        id
+        eventType
+        timestamp
+        txHash
+        jobId
+        datasetRoot
+        details
+      }
+    }
+  `;
 
-  if (!match) notFound();
+  let event: any = null;
 
-  const { event, job } = match;
+  try {
+    const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const json = await res.json();
+      event = json.data?.AuditLog?.[0];
+    }
+  } catch (err) {
+    console.error("Failed to fetch audit data from indexer", err);
+  }
+
+  if (!event) notFound();
+
+  const args = event.details ? JSON.parse(event.details) : {};
 
   return (
     <div className="flex flex-col min-h-full">
@@ -48,37 +71,37 @@ export default async function AuditTxPage({ params }: { params: Promise<{ txHash
           <CardContent className="flex flex-col gap-2 text-xs">
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Event</span>
-              <Badge variant="secondary" className="font-mono text-[10px] h-4">{event.topic}</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Block</span>
-              <span className="font-mono font-medium">#{event.blockNumber.toLocaleString()}</span>
+              <Badge variant="secondary" className="font-mono text-[10px] h-4">{event.eventType}</Badge>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Timestamp</span>
-              <span className="font-mono">{event.timestamp.replace("T", " ").slice(0, 19)} UTC</span>
+              <span className="font-mono">{new Date(Number(event.timestamp) * 1000).toLocaleString()} UTC</span>
             </div>
             <Separator />
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Job ID</span>
-              <Link href={`/app/audit/job/${job.jobId}`} className="hover:underline">
-                <HashChip hash={job.jobId} front={10} back={8} />
-              </Link>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Dataset</span>
-              <Link href={`/app/audit/dataset/${job.datasetRoot}`} className="hover:underline">
-                <HashChip hash={job.datasetRoot} front={10} back={8} />
-              </Link>
-            </div>
+            {event.jobId && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Job ID</span>
+                <Link href={`/app/audit/job/${event.jobId}`} className="hover:underline">
+                  <HashChip hash={event.jobId} front={10} back={8} />
+                </Link>
+              </div>
+            )}
+            {event.datasetRoot && (
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Dataset</span>
+                <Link href={`/app/audit/dataset/${event.datasetRoot}`} className="hover:underline">
+                  <HashChip hash={event.datasetRoot} front={10} back={8} />
+                </Link>
+              </div>
+            )}
             <Separator />
             <div className="flex flex-col gap-1.5">
               <span className="text-muted-foreground">Event arguments</span>
               <div className="rounded-md bg-muted px-3 py-2 flex flex-col gap-1">
-                {Object.entries(event.args).map(([k, v]) => (
+                {Object.entries(args).map(([k, v]) => (
                   <div key={k} className="flex items-center justify-between">
                     <span className="font-mono text-muted-foreground">{k}</span>
-                    <span className="font-mono text-foreground">{v}</span>
+                    <span className="font-mono text-foreground">{String(v)}</span>
                   </div>
                 ))}
               </div>
@@ -87,12 +110,16 @@ export default async function AuditTxPage({ params }: { params: Promise<{ txHash
         </Card>
 
         <div className="flex items-center gap-3">
-          <Button asChild size="sm" variant="outline" className="h-7 text-xs">
-            <Link href={`/app/audit/job/${job.jobId}`}>View full job →</Link>
-          </Button>
-          <Button asChild size="sm" variant="ghost" className="h-7 text-xs">
-            <Link href={`/app/audit/dataset/${job.datasetRoot}`}>View dataset →</Link>
-          </Button>
+          {event.jobId && (
+            <Button asChild size="sm" variant="outline" className="h-7 text-xs">
+              <Link href={`/app/audit/job/${event.jobId}`}>View full job →</Link>
+            </Button>
+          )}
+          {event.datasetRoot && (
+            <Button asChild size="sm" variant="ghost" className="h-7 text-xs">
+              <Link href={`/app/audit/dataset/${event.datasetRoot}`}>View dataset →</Link>
+            </Button>
+          )}
         </div>
 
       </div>

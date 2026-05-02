@@ -7,8 +7,8 @@ This plan reflects the **current codebase state and roadmap**:
 - **Auth** ✅ Complete — Privy integration with `/login` and protected `/app/*` routes.
 - **Contracts** ✅ Complete — `DataPolicy.sol` refined (removed legacy `minEscrow`, `requireTEE`; standardised on `royaltyPerEpoch`, `accessTtlSeconds`).
 - **Read Phase (Marketplace)** ✅ Complete — Envio Indexer live, all mock data removed, real ERC-20 balance reads.
-- **Key Exchange** 🔄 In Progress — ECIES envelope encryption replacing raw AES key exposure.
-- **Compute Phase** ⏳ Next — Backend Orchestrator + 0G Compute integration.
+- **Key Exchange** ✅ Complete — ECIES envelope encryption using `@noble/curves` securely passing keys to the orchestrator.
+- **Compute Phase** 🔄 Next — Backend Orchestrator + 0G Compute integration.
 - **Settlement & Audit** ⏳ Future — attestation verification + royalty audit dashboard.
 
 ---
@@ -22,7 +22,7 @@ This plan reflects the **current codebase state and roadmap**:
 - Real ERC-20 balance (`0x6A0C73162c20Bc56212D643112c339f654C45198`) fetched in Topbar, Settings, and Request flow.
 - Empty state placeholders added to Marketplace, Sessions, and Publisher Dashboard.
 
-### Track B — Key Exchange (ECIES Envelope) 🔄 IN PROGRESS
+### Track B — Key Exchange (ECIES Envelope) ✅ DONE
 **Target: Remove raw AES key exposure and implement secure provisioning.**
 
 #### What we're building
@@ -142,7 +142,8 @@ The route is named `/api/lit/seal-key` intentionally — when we upgrade to Lit 
 
 1. ~~Scaffold Envio Indexer~~ ✅ Done
 2. ~~Replace mock data in Marketplace~~ ✅ Done
-3. **Install `eciesjs` and implement `/api/lit/seal-key` route** ← current
-4. **Update publish form to seal AES key and store envelope in 0G metadata**
-5. **Build `packages/orchestrator/src/keyExchange.ts` decrypt-on-grant**
-6. Wire orchestrator to 0G Compute API for job dispatch
+3. ~~Implement ECIES envelope sealing route `/api/lit/seal-key`~~ ✅ Done
+4. ~~Update publish form to store sealed envelope~~ ✅ Done
+5. ~~Build orchestrator key unsealing and job polling~~ ✅ Done
+6. **Move `encryptedKeyEnvelope` storage from in-memory to Prisma/SQLite** ← current
+7. Wire orchestrator to 0G Compute API for job dispatch

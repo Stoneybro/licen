@@ -6,16 +6,45 @@ import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
 
-const MOCK_JOBS: any[] = [];
-const MOCK_DATASETS: any[] = [];
+export default async function AuditPage() {
+  const query = `
+    query AuditOverview {
+      Job(limit: 3, order_by: { timestamp: desc }) {
+        id
+      }
+      Dataset(limit: 2, order_by: { timestamp: desc }) {
+        id
+      }
+      AuditLog(limit: 10, order_by: { timestamp: desc }) {
+        id
+        eventType
+        txHash
+        datasetRoot
+        timestamp
+      }
+    }
+  `;
 
-const RECENT_EVENTS = MOCK_JOBS.flatMap((j) =>
-  j.events.map((e) => ({ ...e, jobId: j.jobId, datasetLabel: j.datasetLabel }))
-)
-  .sort((a, b) => b.blockNumber - a.blockNumber)
-  .slice(0, 10);
+  let recentJobs: any[] = [];
+  let recentDatasets: any[] = [];
+  let RECENT_EVENTS: any[] = [];
 
-export default function AuditPage() {
+  try {
+    const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+      cache: "no-store",
+    });
+    if (res.ok) {
+      const json = await res.json();
+      recentJobs = json.data?.Job || [];
+      recentDatasets = json.data?.Dataset || [];
+      RECENT_EVENTS = json.data?.AuditLog || [];
+    }
+  } catch (err) {
+    console.error("Failed to fetch audit data from indexer", err);
+  }
   return (
     <div className="flex flex-col min-h-full">
       <AppTopbar title="Audit" />
@@ -56,22 +85,22 @@ export default function AuditPage() {
               </button>
             </div>
             <div className="flex flex-wrap gap-2">
-              {MOCK_JOBS.slice(0, 3).map((j) => (
+              {recentJobs.slice(0, 3).map((j: any) => (
                 <Link
-                  key={j.jobId}
-                  href={`/app/audit/job/${j.jobId}`}
+                  key={j.id}
+                  href={`/app/audit/job/${j.id}`}
                   className="inline-flex items-center gap-1 h-6 px-2 rounded border border-border text-[10px] font-mono text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
                 >
-                  job: {j.jobId.slice(0, 12)}…
+                  job: {j.id.slice(0, 12)}…
                 </Link>
               ))}
-              {MOCK_DATASETS.slice(0, 2).map((d) => (
+              {recentDatasets.slice(0, 2).map((d: any) => (
                 <Link
-                  key={d.datasetRoot}
-                  href={`/app/audit/dataset/${d.datasetRoot}`}
+                  key={d.id}
+                  href={`/app/audit/dataset/${d.id}`}
                   className="inline-flex items-center gap-1 h-6 px-2 rounded border border-border text-[10px] font-mono text-muted-foreground hover:text-foreground hover:border-foreground/30 transition-colors"
                 >
-                  dataset: {d.datasetRoot.slice(0, 12)}…
+                  dataset: {d.id.slice(0, 12)}…
                 </Link>
               ))}
             </div>
@@ -81,9 +110,9 @@ export default function AuditPage() {
         {/* Shortcut cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { label: "By Job", href: `/app/audit/job/${MOCK_JOBS[0]?.jobId || "0x"}`, desc: "Full lifecycle of a single training job" },
-            { label: "By Dataset", href: `/app/audit/dataset/${MOCK_DATASETS[0]?.datasetRoot || "0x"}`, desc: "All jobs and events for a dataset" },
-            { label: "By Tx", href: `/app/audit/tx/${MOCK_JOBS[0]?.events?.[0]?.txHash || "0x"}`, desc: "Decode a single transaction hash" },
+            { label: "By Job", href: `/app/audit/job/${recentJobs[0]?.id || "0x"}`, desc: "Full lifecycle of a single training job" },
+            { label: "By Dataset", href: `/app/audit/dataset/${recentDatasets[0]?.id || "0x"}`, desc: "All jobs and events for a dataset" },
+            { label: "By Tx", href: `/app/audit/tx/${RECENT_EVENTS[0]?.txHash || "0x"}`, desc: "Decode a single transaction hash" },
           ].map((c) => (
             <Link key={c.label} href={c.href}>
               <Card className="h-full hover:border-foreground/20 transition-colors cursor-pointer">
@@ -102,18 +131,20 @@ export default function AuditPage() {
         <div className="flex flex-col gap-3">
           <h3 className="text-sm font-medium">Recent Protocol Events</h3>
           <div className="flex flex-col gap-1">
-            {RECENT_EVENTS.map((e, i) => (
+            {RECENT_EVENTS.map((e: any, i: number) => (
               <Link
                 key={i}
                 href={`/app/audit/tx/${e.txHash}`}
                 className="flex items-center gap-3 rounded-md border border-border px-4 py-2.5 hover:border-foreground/20 transition-colors"
               >
                 <div className="flex-1 min-w-0 flex items-center gap-3">
-                  <Badge variant="secondary" className="font-mono text-[10px] h-4 shrink-0">{e.topic}</Badge>
-                  <span className="text-xs text-muted-foreground truncate">{e.datasetLabel}</span>
+                  <Badge variant="secondary" className="font-mono text-[10px] h-4 shrink-0">{e.eventType}</Badge>
+                  <span className="text-xs text-muted-foreground truncate">{e.datasetRoot?.slice(0, 12)}…</span>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <span className="font-mono text-[10px] text-muted-foreground">#{e.blockNumber.toLocaleString()}</span>
+                  <span className="font-mono text-[10px] text-muted-foreground">
+                    {new Date(Number(e.timestamp) * 1000).toLocaleString()}
+                  </span>
                   <HashChip hash={e.txHash} />
                 </div>
               </Link>
