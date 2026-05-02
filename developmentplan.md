@@ -8,8 +8,8 @@ This plan reflects the **current codebase state and roadmap**:
 - **Contracts** ✅ Complete — `DataPolicy.sol` refined (removed legacy `minEscrow`, `requireTEE`; standardised on `royaltyPerEpoch`, `accessTtlSeconds`).
 - **Read Phase (Marketplace)** ✅ Complete — Envio Indexer live, all mock data removed, real ERC-20 balance reads.
 - **Key Exchange** ✅ Complete — ECIES envelope encryption using `@noble/curves` securely passing keys to the orchestrator.
-- **Compute Phase** 🔄 Next — Backend Orchestrator + 0G Compute integration.
-- **Settlement & Audit** ⏳ Future — attestation verification + royalty audit dashboard.
+- **Compute Phase** ✅ Complete — Backend Orchestrator fully wired to 0G Compute: download/decrypt/re-upload pipeline, job tracker with DB persistence, on-chain lifecycle (startJob → confirmTrainingComplete / markJobFailed).
+- **Settlement & Audit** 🔄 Next — Researcher result UI, training session status dashboard, royalty settlement display.
 
 ---
 
@@ -75,11 +75,32 @@ In `packages/orchestrator/src/keyExchange.ts`:
 #### Key naming convention
 The route is named `/api/lit/seal-key` intentionally — when we upgrade to Lit Protocol, we swap the implementation of this route without changing any callers. The interface stays identical.
 
-### Track C — Compute Phase (Orchestration & 0G Compute) ⏳ NEXT
+### Track C — Compute Phase (Orchestration & 0G Compute) ✅ DONE
 **Target: Enable researchers to run training sessions securely.**
-- **Backend Orchestrator** (`packages/orchestrator`): event listener for `AccessGranted`, key decryption, job dispatch to 0G Compute.
-- **State Machine**: `startJob` → 0G Compute → `confirmTrainingComplete` / `markJobFailed`.
-- **Execution**: 0G Compute node receives encrypted data location + decrypted AES key, trains inside TEE.
+
+#### What was built
+- **`computeClient.ts`**: 0G Compute SDK wrapper (`@0gfoundation/0g-compute-ts-sdk`). Auto-discovers available fine-tuning providers via `broker.fineTuning.listService()`. Initialises an `ethers.Wallet` from `OG_COMPUTE_PRIVATE_KEY`. Handles `createTask`, `getTask`, and `acknowledgeModel` SDK calls.
+- **`dispatcher.ts`**: Full dataset pipeline — downloads encrypted blob from 0G Storage (`Indexer.download`), decrypts in-memory with AES-256-GCM using the unsealed ECIES key, re-uploads plaintext to 0G Storage (`ZgFile + Indexer.upload`) to get a clean root hash, dispatches to 0G Compute, calls `startJob()` on-chain, zeros the AES key in `finally`.
+- **`jobTracker.ts`**: Persistent completion poller backed by Drizzle `compute_jobs` table. Polls every 30s. On `Delivered` → calls `acknowledgeModel` (triggers provider fee settlement). On `Finished` → calls `confirmTrainingComplete()` on-chain. On `Failed` → calls `markJobFailed()`. Rehydrates in-flight jobs from DB on restart.
+- **`src/db/schema.ts` + `src/db/db.ts`**: Drizzle ORM with `postgres-js` driver (long-running connection). `compute_jobs` table live in Neon PostgreSQL.
+- **`@types/node` upgraded to v22** to match Node 22's strict `Buffer ↔ Uint8Array` typing.
+
+#### 0G Compute lifecycle mapping
+| 0G Task Status | Orchestrator action | On-chain state |
+|---|---|---|
+| Init → Training | Monitor only | Running |
+| Delivered | `acknowledgeModel()` | Running |
+| Finished | `confirmTrainingComplete()` | Completed |
+| Failed | `markJobFailed()` | Failed |
+
+#### New env vars required
+```
+OG_COMPUTE_PRIVATE_KEY=  # wallet holding 0G tokens for compute payment
+OG_COMPUTE_MODEL=Qwen2.5-0.5B-Instruct
+OG_INDEXER_RPC_URL=https://indexer-storage-testnet-standard.0g.ai
+OG_TASK_POLL_MS=30000
+DATABASE_URL=postgresql://...  # unpooled Neon connection
+```
 
 ### Track D — Audit Phase (Settlement & UI) ⏳ FUTURE
 **Target: Trustless settlement based on hardware attestation.**
@@ -115,14 +136,17 @@ The route is named `/api/lit/seal-key` intentionally — when we upgrade to Lit 
 - Orchestrator calls Lit API for decryption instead of local ECIES key.
 - Optional: Shamir Secret Sharing across 3–5 nodes as intermediate decentralisation step.
 
-### Milestone 4: Compute Orchestration
-- Backend Orchestrator dispatching jobs to 0G Compute.
-- TEE data decryption and training execution.
-- `startJob` / `confirmTrainingComplete` lifecycle on-chain.
+### Milestone 4: Compute Orchestration ✅ Complete
+- Backend Orchestrator dispatching real jobs to 0G Compute via `@0gfoundation/0g-compute-ts-sdk`.
+- Full download/decrypt/re-upload pipeline for AES-encrypted datasets.
+- `startJob` / `confirmTrainingComplete` / `markJobFailed` lifecycle on-chain.
+- Job state persisted to Neon PostgreSQL (`compute_jobs` table) — survives restarts.
 
-### Milestone 5: Attestation & Audit
-- Verifying TEE attestation reports.
-- Royalty settlement and Audit Dashboard UI.
+### Milestone 5: Settlement & Training Session UI 🔄 Next
+- Researcher can view live training session status (Running → Completed).
+- Publisher dashboard shows dataset usage and royalty earnings.
+- Settlement verification UI — on-chain `resultHash` and `attestationRef` displayed.
+- (Future) On-chain Intel TDX/AMD SEV-SNP attestation quote verification.
 
 ---
 
@@ -145,5 +169,7 @@ The route is named `/api/lit/seal-key` intentionally — when we upgrade to Lit 
 3. ~~Implement ECIES envelope sealing route `/api/lit/seal-key`~~ ✅ Done
 4. ~~Update publish form to store sealed envelope~~ ✅ Done
 5. ~~Build orchestrator key unsealing and job polling~~ ✅ Done
-6. **Move `encryptedKeyEnvelope` storage from in-memory to Prisma/SQLite** ← current
-7. Wire orchestrator to 0G Compute API for job dispatch
+6. ~~Move `encryptedKeyEnvelope` storage to Neon (Drizzle)~~ ✅ Done
+7. ~~Wire orchestrator to 0G Compute SDK for real job dispatch~~ ✅ Done
+8. **Build Training Session status UI** — researcher sees live job state (Running → Completed)
+9. **Publisher earnings dashboard** — show royalties settled per dataset

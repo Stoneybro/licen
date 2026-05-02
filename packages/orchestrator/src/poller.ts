@@ -15,6 +15,9 @@
  */
 
 import { processGrantedJob, type GrantedJob } from "./dispatcher.js";
+import { db } from "./db/db.js";
+import { computeJobs } from "./db/schema.js";
+import { eq } from "drizzle-orm";
 
 const ENVIO_GRAPHQL_URL =
   process.env.ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql";
@@ -87,7 +90,23 @@ async function fetchKeyEnvelope(datasetRoot: string): Promise<string | null> {
 // Dispatch tracking — don't re-dispatch jobs we've already sent
 // ---------------------------------------------------------------------------
 
+// (Deduplication is now handled by the DB — compute_jobs table tracks dispatched jobs.)
+// We still keep a small in-process cache to avoid hammering the DB on every poll cycle.
 const dispatched = new Set<string>();
+
+async function isAlreadyDispatched(jobId: string): Promise<boolean> {
+  if (dispatched.has(jobId)) return true;
+  // Check DB for jobs that survived a restart
+  const existing = await db.query.computeJobs.findFirst({
+    where: eq(computeJobs.licenJobId, jobId),
+    columns: { licenJobId: true },
+  });
+  if (existing) {
+    dispatched.add(jobId); // cache it
+    return true;
+  }
+  return false;
+}
 
 // ---------------------------------------------------------------------------
 // Main poll loop
@@ -103,7 +122,7 @@ async function poll(): Promise<void> {
   }
 
   for (const job of jobs) {
-    if (dispatched.has(job.id)) continue;
+    if (await isAlreadyDispatched(job.id)) continue;
 
     // Fetch the encrypted key envelope
     const encryptedKeyEnvelope = await fetchKeyEnvelope(job.datasetRoot);

@@ -35,19 +35,48 @@ export default function DatasetsPage() {
             }
           }
         `;
-        const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
+        const res = await fetch(process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ query }),
         });
         const json = await res.json();
-        const indexerDatasets = json.data?.Dataset || [];
+        const indexerDatasets: any[] = json.data?.Dataset || [];
+
+        // Fetch job stats per dataset in parallel
+        const jobStatsResults = await Promise.all(
+          indexerDatasets.map(async (d: any) => {
+            try {
+              const jobQuery = `query DatasetJobs {
+                Job(where: { datasetRoot: { _ilike: "${d.id}" } }) {
+                  state
+                  royaltySettled
+                }
+              }`;
+              const jr = await fetch(process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query: jobQuery }),
+              });
+              const jj = await jr.json();
+              const jobs: any[] = jj.data?.Job || [];
+              const lifetimeRoyalties = jobs.reduce((acc: bigint, j: any) => {
+                return acc + (j.royaltySettled ? BigInt(j.royaltySettled) : BigInt(0));
+              }, BigInt(0));
+              const activeJobCount = jobs.filter((j: any) => j.state === "Running" || j.state === "Granted").length;
+              return { lifetimeRoyalties: formatUnits(lifetimeRoyalties, 18), jobCount: jobs.length, activeJobCount };
+            } catch {
+              return { lifetimeRoyalties: "0", jobCount: 0, activeJobCount: 0 };
+            }
+          })
+        );
 
         const publicClient = getOgPublicClient();
         const policyAddress = getDataPolicyAddress();
 
         const hydrated = await Promise.all(
-          indexerDatasets.map(async (d: any) => {
+          indexerDatasets.map(async (d: any, idx: number) => {
+            const stats = jobStatsResults[idx];
             try {
               const policy: any = await publicClient.readContract({
                 address: policyAddress,
@@ -66,10 +95,10 @@ export default function DatasetsPage() {
                 maxRunsPerRequester: Number(policy[5] || 0),
                 openRequesters: policy[10] || false,
                 requireResultAttestation: policy[8] || false,
-                lifetimeRoyalties: "0",
-                jobCount: 0,
-                activeJobCount: 0,
-                policyExpiry: "2026-12-31T00:00:00Z"
+                lifetimeRoyalties: stats.lifetimeRoyalties,
+                jobCount: stats.jobCount,
+                activeJobCount: stats.activeJobCount,
+                policyExpiry: policy[7] ? new Date(Number(policy[7]) * 1000).toISOString() : "2026-12-31T00:00:00Z"
               };
             } catch (err) {
               console.error(err);

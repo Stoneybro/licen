@@ -31,7 +31,7 @@ async function fetchJobsFromEnvio() {
     }
   `;
   try {
-    const res = await fetch("http://127.0.0.1:8080/v1/graphql", {
+    const res = await fetch(process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),

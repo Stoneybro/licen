@@ -9,15 +9,23 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "db:push": "drizzle-kit push",
+    "db:studio": "drizzle-kit studio"
   },
   "dependencies": {
+    "@0gfoundation/0g-compute-ts-sdk": "^0.8.0",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
+    "drizzle-orm": "^0.45.2",
+    "ethers": "^6.16.0",
+    "postgres": "^3.4.9",
     "viem": "^2.48.4"
   },
   "devDependencies": {
-    "@types/node": "^20.0.0",
+    "@types/node": "^22.7.5",
+    "dotenv": "^17.4.2",
+    "drizzle-kit": "^0.31.10",
     "tsx": "^4.0.0",
     "typescript": "^5.4.0"
   }

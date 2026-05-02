@@ -5,13 +5,24 @@
  *
  * Responsibilities:
  *  1. Verify on-chain job state is Granted (guard against race conditions).
- *  2. Fetch the encrypted key envelope from 0G Storage metadata.
- *  3. Unseal the AES key using ECIES private key.
- *  4. Dispatch to 0G Compute (stub — replace with real API call).
- *  5. Call startJob() on-chain to move state to Running.
- *  6. Zero the AES key from memory.
+ *  2. Unseal the AES key using ECIES private key.
+ *  3. Download the encrypted dataset from 0G Storage.
+ *  4. Decrypt the dataset blob in memory → write to a secure temp file.
+ *  5. Re-upload the plaintext JSONL dataset to 0G Storage → get a new root hash.
+ *  6. Dispatch to 0G Compute with the plaintext root hash.
+ *  7. Register the returned task ID in the job tracker (persisted to DB).
+ *  8. Call startJob() on-chain to move state to Running.
+ *  9. Zero the AES key from memory and delete temp files.
  *
- * On any error: call markJobFailed() on-chain so the researcher can be refunded.
+ * Why download-decrypt-re-upload?
+ *  The 0G Compute SDK's createTask() takes only a dataset root hash.
+ *  Providers pull the dataset from 0G Storage directly — they have no
+ *  mechanism to decrypt an AES-encrypted blob. The plaintext dataset must be
+ *  available on 0G Storage for the compute provider to use it.
+ *  Track D upgrade path: move to a TEE-native key injection API once 0G
+ *  exposes one, eliminating the need to store plaintext on 0G Storage.
+ *
+ * On any error before dispatch: call markJobFailed() so the researcher is refunded.
  */
 
 import {
@@ -23,21 +34,28 @@ import {
   type Hex,
 } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
+import { createRequire } from "module";
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import { createDecipheriv } from "crypto";
+
 import { DATA_POLICY_ABI, JobState } from "./contract.js";
 import { unsealDatasetKey } from "./keyExchange.js";
+import { createFineTuningTask } from "./computeClient.js";
+import { registerJob } from "./jobTracker.js";
 
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
+// We use require() for 0g-ts-sdk and ethers to handle CJS/ESM interop
+const _require = createRequire(import.meta.url);
+const { Indexer, ZgFile } = _require("@0gfoundation/0g-ts-sdk");
+const { ethers } = _require("ethers") as typeof import("ethers");
 
 // ---------------------------------------------------------------------------
 // Chain + client setup
 // ---------------------------------------------------------------------------
 
 function getOgChain() {
-  const rpcUrl =
-    process.env.OG_EVM_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
-
+  const rpcUrl = process.env.OG_EVM_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
   return defineChain({
     id: 16602,
     name: "0G Testnet",
@@ -48,90 +66,141 @@ function getOgChain() {
 }
 
 function getClients() {
-  const rpcUrl =
-    process.env["OG_EVM_RPC_URL"] ?? "https://evmrpc-testnet.0g.ai";
-  const backendKey = process.env["BACKEND_WALLET_PRIVATE_KEY"];
+  const rpcUrl = process.env.OG_EVM_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
+  const backendKey = process.env.BACKEND_WALLET_PRIVATE_KEY;
   if (!backendKey) throw new Error("Missing env: BACKEND_WALLET_PRIVATE_KEY");
 
   const chain = getOgChain();
   const account = privateKeyToAccount(backendKey as Hex);
-
   const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
-  const walletClient = createWalletClient({
-    chain,
-    transport: http(rpcUrl),
-    account,
-  });
+  const walletClient = createWalletClient({ chain, transport: http(rpcUrl), account });
 
   return { publicClient, walletClient, account };
 }
 
 function getContractAddress(): Address {
-  const addr = process.env["OG_DATA_POLICY_ADDRESS"];
+  const addr = process.env.OG_DATA_POLICY_ADDRESS;
   if (!addr) throw new Error("Missing env: OG_DATA_POLICY_ADDRESS");
   return addr as Address;
 }
 
 // ---------------------------------------------------------------------------
-// 0G Compute dispatch (stub)
+// 0G Storage helper
 // ---------------------------------------------------------------------------
 
-/**
- * Dispatch a training job to a 0G Compute node.
- *
- * TODO: Replace this stub with the real 0G Compute API call.
- * The compute node needs:
- *   - datasetCid: the 0G Storage root hash of the encrypted dataset blob
- *   - aesKeyHex: decrypted AES key (32 bytes, hex)
- *   - ivHex: the IV (12 bytes, hex)
- *   - requestedEpochs: how many epochs to train
- *
- * The node should zero the key after loading the dataset into memory.
- */
-async function dispatchTo0GCompute(params: {
-  jobId: string;
-  datasetCid: string;
-  aesKeyHex: string;
-  ivHex: string;
-  requestedEpochs: number;
-}): Promise<void> {
-  // STUB — log for now. In production, call the 0G Compute node API.
-  console.log(`[dispatcher] 0G Compute dispatch stub for job ${params.jobId}`);
-  console.log(`  datasetCid:      ${params.datasetCid}`);
-  console.log(`  requestedEpochs: ${params.requestedEpochs}`);
-  console.log(`  aesKey:          ████████████████████████████████ (redacted)`);
+const OG_INDEXER_RPC = process.env.OG_INDEXER_RPC_URL ?? "https://indexer-storage-testnet-standard.0g.ai";
+const OG_EVM_RPC = process.env.OG_EVM_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
 
-  // TODO: Replace with actual HTTP call to 0G Compute API:
-  //
-  // await fetch(process.env.OG_COMPUTE_API_URL + "/jobs", {
-  //   method: "POST",
-  //   headers: { "Content-Type": "application/json" },
-  //   body: JSON.stringify({
-  //     jobId: params.jobId,
-  //     datasetCid: params.datasetCid,
-  //     aesKeyHex: params.aesKeyHex,
-  //     ivHex: params.ivHex,
-  //     requestedEpochs: params.requestedEpochs,
-  //   }),
-  // });
+/**
+ * Download an encrypted dataset blob from 0G Storage.
+ * Returns the raw bytes of the encrypted file.
+ */
+async function downloadFromStorage(rootHash: string, jobId: string): Promise<Buffer> {
+  const tmpEncrypted = path.join(os.tmpdir(), `licen-enc-${jobId}.bin`);
+  const indexer = new Indexer(OG_INDEXER_RPC);
+  const err = await indexer.download(rootHash, tmpEncrypted, false);
+  if (err !== null) {
+    throw new Error(`0G Storage download failed for ${rootHash}: ${err}`);
+  }
+  const data = fs.readFileSync(tmpEncrypted);
+  fs.unlinkSync(tmpEncrypted); // clean up immediately
+  return data;
+}
+
+/**
+ * Decrypt an AES-256-GCM blob.
+ * The blob format: [12 bytes IV][16 bytes auth tag][ciphertext...]
+ */
+function decryptDataset(
+  encryptedBytes: Buffer,
+  aesKey: Uint8Array,
+  iv: Uint8Array
+): Buffer {
+  // Blob layout from the publisher: raw AES-256-GCM ciphertext with the 16-byte
+  // GCM auth tag appended at the end. The IV is carried in the ECIES envelope, not the blob.
+  const raw = new Uint8Array(encryptedBytes.buffer, encryptedBytes.byteOffset, encryptedBytes.byteLength);
+  const authTag = raw.slice(raw.length - 16);
+  const ciphertext = raw.slice(0, raw.length - 16);
+
+  const keyBuf = Buffer.allocUnsafe(aesKey.byteLength);
+  keyBuf.set(aesKey);
+  const ivBuf = Buffer.allocUnsafe(iv.byteLength);
+  ivBuf.set(iv);
+  const authTagBuf = Buffer.allocUnsafe(authTag.byteLength);
+  authTagBuf.set(authTag);
+  const ctBuf = Buffer.allocUnsafe(ciphertext.byteLength);
+  ctBuf.set(ciphertext);
+
+  const decipher = createDecipheriv("aes-256-gcm", keyBuf, ivBuf);
+  (decipher as any).setAuthTag(authTagBuf);
+  const part1: Buffer = (decipher as any).update(ctBuf);
+  const part2: Buffer = (decipher as any).final();
+
+  return Buffer.concat([part1, part2]);
+}
+
+/**
+ * Upload a plaintext dataset to 0G Storage and return its new root hash.
+ * The file is deleted from disk after upload.
+ */
+async function uploadPlaintextToStorage(
+  plaintext: Buffer,
+  jobId: string
+): Promise<string> {
+  const backendKey = process.env.BACKEND_WALLET_PRIVATE_KEY;
+  if (!backendKey) throw new Error("Missing BACKEND_WALLET_PRIVATE_KEY");
+
+  const tmpPlaintext = path.join(os.tmpdir(), `licen-plain-${jobId}.jsonl`);
+  fs.writeFileSync(tmpPlaintext, plaintext as unknown as string, { mode: 0o600 }); // owner-read-only
+
+  try {
+    const provider = new ethers.JsonRpcProvider(OG_EVM_RPC);
+    const signer = new ethers.Wallet(
+      backendKey.startsWith("0x") ? backendKey : `0x${backendKey}`,
+      provider
+    );
+
+    const file = await ZgFile.fromFilePath(tmpPlaintext);
+    const [tx, uploadErr] = await (new Indexer(OG_INDEXER_RPC)).upload(file, OG_EVM_RPC, signer);
+    await file.close();
+
+    if (uploadErr !== null) {
+      throw new Error(`0G Storage upload failed: ${uploadErr}`);
+    }
+
+    const rootHash: string = tx?.rootHash ?? tx;
+    if (!rootHash) throw new Error("0G Storage upload did not return a root hash");
+
+    console.log(`[dispatcher] Plaintext dataset uploaded → rootHash: ${rootHash}`);
+    return rootHash;
+  } finally {
+    // Always delete the plaintext temp file, even on error
+    if (fs.existsSync(tmpPlaintext)) {
+      fs.unlinkSync(tmpPlaintext);
+    }
+  }
 }
 
 // ---------------------------------------------------------------------------
-// Main dispatch function — called per AccessGranted job
+// Job type
 // ---------------------------------------------------------------------------
 
 export type GrantedJob = {
   /** On-chain job ID (bytes32 hex) */
   jobId: string;
-  /** Dataset root hash — used to fetch the encrypted key from 0G Storage */
+  /** Dataset root hash — used to fetch the encrypted key */
   datasetRoot: string;
   /** ECIES-encrypted AES key envelope stored at publish time */
   encryptedKeyEnvelope: string;
-  /** 0G Storage CID of the encrypted dataset blob */
+  /** 0G Storage root hash of the encrypted dataset blob (same as datasetRoot) */
   datasetCid: string;
   /** Number of epochs the researcher requested */
   requestedEpochs: number;
 };
+
+// ---------------------------------------------------------------------------
+// Main dispatch function — called per AccessGranted job
+// ---------------------------------------------------------------------------
 
 export async function processGrantedJob(job: GrantedJob): Promise<void> {
   const { publicClient, walletClient, account } = getClients();
@@ -157,7 +226,7 @@ export async function processGrantedJob(job: GrantedJob): Promise<void> {
   }
 
   // ── Step 2: Unseal the AES key ─────────────────────────────────────────────
-  let unsealedKey;
+  let unsealedKey: ReturnType<typeof unsealDatasetKey>;
   try {
     unsealedKey = unsealDatasetKey(job.encryptedKeyEnvelope);
   } catch (err) {
@@ -166,29 +235,59 @@ export async function processGrantedJob(job: GrantedJob): Promise<void> {
     return;
   }
 
-  // ── Step 3: Dispatch to 0G Compute ────────────────────────────────────────
+  // ── Steps 3–5: Download encrypted dataset, decrypt, re-upload plaintext ───
+  let plaintextRootHash: string;
   try {
-    const aesKeyHex = bytesToHex(unsealedKey.aesKey);
-    const ivHex = bytesToHex(unsealedKey.iv);
+    console.log(`[dispatcher] Downloading encrypted dataset: ${job.datasetCid}`);
+    const encryptedBytes = await downloadFromStorage(job.datasetCid, job.jobId);
 
-    await dispatchTo0GCompute({
-      jobId: job.jobId,
-      datasetCid: job.datasetCid,
-      aesKeyHex,
-      ivHex,
-      requestedEpochs: job.requestedEpochs,
-    });
+    console.log(`[dispatcher] Decrypting dataset (${encryptedBytes.length} bytes)`);
+    const plaintext = decryptDataset(encryptedBytes, unsealedKey.aesKey, unsealedKey.iv);
+
+    console.log(`[dispatcher] Re-uploading plaintext dataset to 0G Storage`);
+    plaintextRootHash = await uploadPlaintextToStorage(plaintext, job.jobId);
   } catch (err) {
-    console.error(`[dispatcher] 0G Compute dispatch failed for job ${job.jobId}:`, err);
+    console.error(`[dispatcher] Dataset decrypt/re-upload failed for job ${job.jobId}:`, err);
     unsealedKey.zero();
-    await markFailed(walletClient, account, contractAddress, job.jobId, "COMPUTE_DISPATCH_FAILED");
+    await markFailed(walletClient, account, contractAddress, job.jobId, "DATASET_DECRYPT_FAILED");
     return;
   } finally {
-    // ── Step 4: Zero the AES key from memory regardless of outcome ──────────
+    // ── Step 9: Zero the AES key from memory regardless of outcome ──────────
     unsealedKey.zero();
   }
 
-  // ── Step 5: Mark job as Running on-chain ──────────────────────────────────
+  // ── Step 6: Dispatch to 0G Compute with the plaintext root hash ───────────
+  let taskId: string;
+  let providerAddress: string;
+
+  try {
+    const result = await createFineTuningTask({
+      datasetRootHash: plaintextRootHash,
+      requestedEpochs: job.requestedEpochs,
+    });
+    taskId = result.taskId;
+    providerAddress = result.providerAddress;
+  } catch (err) {
+    console.error(`[dispatcher] 0G Compute dispatch failed for job ${job.jobId}:`, err);
+    await markFailed(walletClient, account, contractAddress, job.jobId, "COMPUTE_DISPATCH_FAILED");
+    return;
+  }
+
+  // ── Step 7: Register in job tracker (persisted to DB) ─────────────────────
+  try {
+    await registerJob({
+      licenJobId: job.jobId,
+      datasetRoot: job.datasetRoot,
+      zeroGTaskId: taskId,
+      providerAddress,
+      requestedEpochs: job.requestedEpochs,
+    });
+  } catch (err) {
+    console.error(`[dispatcher] Failed to register job in tracker:`, err);
+    // Non-fatal: continue to startJob
+  }
+
+  // ── Step 8: Mark job as Running on-chain ──────────────────────────────────
   try {
     const txHash = await walletClient.writeContract({
       address: contractAddress,
@@ -198,16 +297,14 @@ export async function processGrantedJob(job: GrantedJob): Promise<void> {
       account,
       chain: null,
     });
-    console.log(`[dispatcher] startJob tx: ${txHash}`);
+    console.log(`[dispatcher] ✅ Job ${job.jobId} started. 0G task: ${taskId} | startJob tx: ${txHash}`);
   } catch (err) {
     console.error(`[dispatcher] startJob failed for job ${job.jobId}:`, err);
-    // The compute job may already be running — log but don't mark failed
-    // as that would prevent settlement. Operator must monitor manually.
   }
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Helper
 // ---------------------------------------------------------------------------
 
 async function markFailed(

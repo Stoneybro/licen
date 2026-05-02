@@ -59,13 +59,12 @@ export async function sealKeyEnvelope(
   datasetRoot: string,
   publisherAddress: string
 ): Promise<SealKeyResult> {
-  // In local dev without the orchestrator key set, return a dev placeholder
   if (!process.env.NEXT_PUBLIC_ORCHESTRATOR_PUBLIC_KEY) {
-    console.warn(
-      "[sealKeyEnvelope] NEXT_PUBLIC_ORCHESTRATOR_PUBLIC_KEY not set — using dev placeholder. " +
-      "Set this env var for production builds."
+    throw new Error(
+      "[LICEN] NEXT_PUBLIC_ORCHESTRATOR_PUBLIC_KEY is not set. " +
+      "Dataset cannot be published without the orchestrator public key configured. " +
+      "Run scripts/gen-orchestrator-keypair.ts to generate a keypair."
     );
-    return { encryptedKeyEnvelope: `dev:${keyHex}:${ivHex}` };
   }
 
   const res = await fetch("/api/lit/seal-key", {

@@ -204,17 +204,24 @@ Optional publisher-defined fields:
 2. Frontend Marketplace hydrates from Envio GraphQL + on-chain policy reads.
 3. All mock data removed; balances read from live ERC-20 contract.
 
-### 9.3 Phase 3: Key Exchange 🔄 In Progress
-1. Publisher's encrypted key envelope is stored in 0G Storage metadata.
-2. On `AccessGranted`, Orchestrator fetches and decrypts the AES key (ECIES).
-3. AES key dispatched to 0G Compute job, then zeroed.
+### 9.3 Phase 3: Key Exchange ✅ Complete
+1. Publisher's encrypted key envelope is stored in Neon DB (keyed by `datasetRoot`).
+2. On `AccessGranted`, Orchestrator fetches envelope from DB and decrypts the AES key (ECIES via `@noble/curves`).
+3. AES key is used during dataset decryption, then zeroed from memory.
 
-### 9.4 Phase 4: Compute & Research
+### 9.4 Phase 4: Compute & Research ✅ Complete
 1. Researcher requests access via UI and escrows USDC tokens.
-2. Backend Orchestrator detects `AccessGranted` event via Envio.
-3. Orchestrator decrypts AES key and dispatches a compute job to 0G Compute.
-4. 0G Compute node trains on the encrypted data using the decrypted key.
-5. Node generates an Attestation Report and model weights.
+2. Backend Orchestrator detects `AccessGranted` event via Envio GraphQL poll.
+3. Orchestrator unseals AES key from ECIES envelope.
+4. Orchestrator downloads encrypted dataset blob from 0G Storage (`Indexer.download`).
+5. Orchestrator decrypts blob in-memory (AES-256-GCM) → writes plaintext to `/tmp` (mode `0o600`).
+6. Orchestrator re-uploads plaintext JSONL to 0G Storage → receives new `plaintextRootHash`.
+7. Orchestrator deletes the temp file; AES key is zeroed.
+8. Orchestrator dispatches to 0G Compute via `broker.fineTuning.createTask(provider, model, plaintextRootHash, config)`.
+9. `jobTracker` polls 0G task status every 30s → on `Finished` calls `confirmTrainingComplete()`, on `Failed` calls `markJobFailed()`.
+10. On-chain settlement: USDC royalties released to publisher, unspent escrow refunded to researcher.
+
+**Upgrade note:** Step 5–7 (plaintext on 0G Storage) is the MVP approach. Track D upgrade replaces this with direct TEE key injection once 0G Compute exposes a key-parameter API.
 
 ### 9.5 Phase 5: Audit & Settlement
 1. Orchestrator calls `confirmTrainingComplete(jobId, actualEpochs, resultHash, attestationRef)`.
@@ -229,12 +236,15 @@ Optional publisher-defined fields:
 The Backend Orchestrator and Envio Indexer replace the generic "wrapper".
 
 - **Envio Indexer**: Extremely fast, EVM-compatible indexer to populate the Marketplace and track escrow/settlement events.
-- **Backend Orchestrator**:
-  - Listens to Envio webhooks/events.
+- **Backend Orchestrator** (`packages/orchestrator`):
+  - Polls Envio GraphQL for `Granted` jobs every 5 seconds.
   - Verifies on-chain job state before any key operation.
-  - Decrypts dataset AES key via ECIES and dispatches to 0G Compute.
-  - Manages the asynchronous flow of training sessions.
-  - Calls `startJob`, `confirmTrainingComplete`, or `markJobFailed` on-chain.
+  - Unseals dataset AES key via ECIES (`keyExchange.ts`).
+  - Downloads encrypted dataset from 0G Storage, decrypts in-memory, re-uploads plaintext (`dispatcher.ts`).
+  - Dispatches fine-tuning job to 0G Compute via `@0gfoundation/0g-compute-ts-sdk` (`computeClient.ts`).
+  - Persists job state (task ID, provider address, status) to Neon PostgreSQL (`compute_jobs` table).
+  - Polls 0G task status every 30s via `jobTracker.ts`.
+  - Calls `startJob`, `confirmTrainingComplete`, or `markJobFailed` on-chain based on 0G task lifecycle.
 
 ---
 

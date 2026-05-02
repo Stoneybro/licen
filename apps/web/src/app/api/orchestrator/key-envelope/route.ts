@@ -17,13 +17,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { getKeyEnvelopeByDatasetRoot } from "@/lib/publish/store";
 
 export async function GET(req: NextRequest) {
-  // ── Auth guard (MVP: shared secret header) ─────────────────────────────────
+  // ── Auth guard (REQUIRED: shared secret header) ─────────────────────────────
   const secret = process.env.ORCHESTRATOR_API_SECRET;
-  if (secret) {
-    const authHeader = req.headers.get("authorization");
-    if (authHeader !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
+  if (!secret) {
+    // Fail loudly rather than silently allowing unauthenticated access.
+    // Set ORCHESTRATOR_API_SECRET in both orchestrator and web .env.
+    console.error("[key-envelope] ORCHESTRATOR_API_SECRET is not set — rejecting request");
+    return NextResponse.json(
+      { error: "Service not configured: ORCHESTRATOR_API_SECRET missing" },
+      { status: 503 }
+    );
+  }
+  const authHeader = req.headers.get("authorization");
+  if (authHeader !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
   const datasetRoot = req.nextUrl.searchParams.get("datasetRoot");
