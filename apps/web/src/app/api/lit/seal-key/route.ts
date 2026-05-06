@@ -28,7 +28,8 @@ export async function POST(req: NextRequest) {
 
   try {
     body = await req.json();
-  } catch {
+  } catch (error) {
+    console.error("[seal-key] Failed to parse request body:", error);
     return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
@@ -64,8 +65,9 @@ export async function POST(req: NextRequest) {
       args: [datasetRoot as `0x${string}`],
     }).catch(() => null);
 
-    // policy[0] is the owner address. If it's not zero address, verify it matches.
-    const onChainOwner: string | undefined = policy?.[0];
+    // policy[1] is the owner address in the Policy struct (datasetRoot is policy[0]).
+    // If it's not zero address, verify it matches.
+    const onChainOwner: string | undefined = policy?.[1];
     const zeroAddress = "0x0000000000000000000000000000000000000000";
 
     if (onChainOwner && onChainOwner !== zeroAddress) {

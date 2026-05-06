@@ -19,6 +19,7 @@ export async function POST(request: NextRequest) {
 
     return Response.json({ datasetRoot }, { status: 201 });
   } catch (err: unknown) {
+    console.error("Dataset upload error:", err);
     const message = err instanceof Error ? err.message : "Unexpected server error";
     const errorBody: ApiErrorResponse = {
       error: { code: "INTERNAL_ERROR", message },

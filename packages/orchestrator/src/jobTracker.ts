@@ -113,7 +113,12 @@ async function pollActiveJobs(): Promise<void> {
     if (!job.zeroGTaskId || !job.providerAddress) continue;
 
     try {
-      const progress = await ComputeClient.getTaskStatus(job.zeroGTaskId, job.providerAddress);
+      let progress = "";
+      if (process.env.LICEN_DEMO_MODE === "true" && job.providerAddress === "0xdemo") {
+        progress = job.status === "running" ? "Delivered" : "Finished";
+      } else {
+        progress = await ComputeClient.getTaskStatus(job.zeroGTaskId, job.providerAddress);
+      }
       console.log(`[jobTracker] Job ${job.licenJobId} → 0G status: ${progress}`);
 
       // ── Delivered: acknowledge to trigger provider fee settlement ────────
@@ -123,7 +128,12 @@ async function pollActiveJobs(): Promise<void> {
           .set({ status: "acknowledging", updatedAt: new Date() })
           .where(eq(computeJobs.licenJobId, job.licenJobId));
 
-        const resultHash = await ComputeClient.acknowledgeModel(job.zeroGTaskId, job.providerAddress);
+        let resultHash: string;
+        if (process.env.LICEN_DEMO_MODE === "true" && job.providerAddress === "0xdemo") {
+          resultHash = `0x${job.zeroGTaskId.replace(/-/g, "").padEnd(64, "0").slice(0, 64)}`;
+        } else {
+          resultHash = await ComputeClient.acknowledgeModel(job.zeroGTaskId, job.providerAddress);
+        }
 
         await db
           .update(computeJobs)

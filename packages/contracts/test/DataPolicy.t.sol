@@ -29,7 +29,7 @@ contract DataPolicyTest is Test {
 
     function setUp() public {
         lusd = new MockLUSD();
-        policy = new DataPolicy(address(lusd));
+        policy = new DataPolicy(address(lusd), provider);
 
         // Fund requester
         lusd.mint(requester, 1000000 * 10**18);
@@ -43,25 +43,19 @@ contract DataPolicyTest is Test {
         
         address[] memory requesters = new address[](1);
         requesters[0] = requester;
-        
-        address[] memory providers = new address[](1);
-        providers[0] = provider;
 
         policy.registerDataset(
             datasetRoot,
             manifestHash,
             10 * 10**18, // royaltyPerEpoch: 10 lUSD
-            50 * 10**18, // minEscrow: 50 lUSD
             10,          // maxEpochsPerRun
             5,           // maxRunsPerRequester
             3600,        // accessTtlSeconds
             0,           // policyExpiry
-            true,        // requireTEE
             true,        // requireResultAttestation
             false,       // openRequesters
             purposes,
-            requesters,
-            providers
+            requesters
         );
         vm.stopPrank();
 
@@ -70,12 +64,10 @@ contract DataPolicyTest is Test {
             address _owner,
             bytes32 _manifestHash,
             uint256 royaltyPerEpoch,
-            uint256 minEscrow,
             uint32 maxEpochsPerRun,
             uint32 maxRunsPerRequester,
             uint64 accessTtlSeconds,
             uint64 policyExpiry,
-            bool requireTEE,
             bool requireResultAttestation,
             bool active,
             bool openRequesters
@@ -96,25 +88,19 @@ contract DataPolicyTest is Test {
         
         address[] memory requesters = new address[](1);
         requesters[0] = requester;
-        
-        address[] memory providers = new address[](1);
-        providers[0] = provider;
 
         policy.registerDataset(
             datasetRoot,
             manifestHash,
             10 * 10**18, // 10 lUSD/epoch
-            50 * 10**18, // 50 lUSD min
             10,          // max 10 epochs
             5,
             3600,
             0,
             true,
-            true,
             false,
             purposes,
-            requesters,
-            providers
+            requesters
         );
         vm.stopPrank();
     }
@@ -125,11 +111,10 @@ contract DataPolicyTest is Test {
         vm.startPrank(requester);
         lusd.approve(address(policy), type(uint256).max);
 
-        // Request 5 epochs (50 lUSD expected, meets minEscrow)
+        // Request 5 epochs (50 lUSD expected)
         bytes32 jobId = policy.requestAccess(
             datasetRoot,
             purposeId,
-            provider,
             5,
             manifestHash
         );
@@ -149,7 +134,7 @@ contract DataPolicyTest is Test {
 
         assertEq(jobDatasetRoot, datasetRoot);
         assertEq(jobRequester, requester);
-        assertEq(escrowAmount, 50 * 10**18); // 5 * 10 or minEscrow
+        assertEq(escrowAmount, 50 * 10**18); // 5 * 10
         assertEq(uint(state), uint(DataPolicy.JobState.Granted));
         assertEq(lusd.balanceOf(address(policy)), 50 * 10**18); // Escrow locked
     }
@@ -162,7 +147,6 @@ contract DataPolicyTest is Test {
         bytes32 jobId = policy.requestAccess(
             datasetRoot,
             purposeId,
-            provider,
             6, // 60 lUSD locked
             manifestHash
         );

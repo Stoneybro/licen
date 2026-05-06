@@ -1,6 +1,9 @@
+"use client";
+
+import * as React from "react";
 import Link from "next/link";
-import { notFound } from "next/navigation";
-import { ArrowLeftIcon, RefreshCwIcon } from "lucide-react";
+import { useParams, notFound } from "next/navigation";
+import { ArrowLeftIcon, RefreshCwIcon, Loader2 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +15,7 @@ import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
 import { formatUnits } from "viem";
+import { cn } from "@/lib/utils";
 
 const STATE_ORDER = ["Requested", "Granted", "Running", "Completed"];
 
@@ -51,101 +55,132 @@ function getTimelineNodes(state: string): { state: string; status: "completed" |
   return nodes;
 }
 
-async function fetchJobData(jobId: string) {
-  const query = `
-    query GetJob {
-      Job(where: { id: { _ilike: "${jobId}" } }) {
-        id
-        datasetRoot
-        requester
-        requestedEpochs
-        state
-        timestamp
-        txHash
-        lastUpdatedTimestamp
-        actualEpochs
-        resultHash
-        attestationRef
-        failReason
-        royaltySettled
-        refundIssued
+export default function JobDetailPage() {
+  const { jobId } = useParams<{ jobId: string }>();
+  const [job, setJob] = React.useState<any>(null);
+  const [loading, setLoading] = React.useState(true);
+  const [refreshing, setRefreshing] = React.useState(false);
+
+  const fetchAndHydrate = React.useCallback(async (isRefresh = false) => {
+    if (!jobId) return;
+    if (isRefresh) setRefreshing(true);
+    else setLoading(true);
+
+    try {
+      const query = `
+        query GetJob {
+          Job(where: { id: { _ilike: "${jobId}" } }) {
+            id
+            datasetRoot
+            requester
+            requestedEpochs
+            state
+            timestamp
+            txHash
+            lastUpdatedTimestamp
+            actualEpochs
+            resultHash
+            attestationRef
+            failReason
+            royaltySettled
+            refundIssued
+          }
+          AuditLog(where: { jobId: { _ilike: "${jobId}" } }, order_by: { timestamp: asc }) {
+            id
+            eventType
+            timestamp
+            txHash
+            details
+          }
+        }
+      `;
+      
+      const res = await fetch(process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ query }),
+      });
+      
+      const json = await res.json();
+      const jobData = json.data?.Job?.[0];
+      if (!jobData) {
+        setLoading(false);
+        return;
       }
-      AuditLog(where: { jobId: { _ilike: "${jobId}" } }, order_by: { timestamp: asc }) {
-        id
-        eventType
-        timestamp
-        txHash
-        details
+
+      const publicClient = getOgPublicClient();
+      const policyAddress = getDataPolicyAddress();
+      let policyDetails: any = null;
+      let escrow = "0";
+
+      try {
+        const policy: any = await publicClient.readContract({
+          address: policyAddress,
+          abi: DATA_POLICY_ABI,
+          functionName: "policies",
+          args: [jobData.datasetRoot as `0x${string}`],
+        });
+        policyDetails = policy;
+        const royaltyPerEpoch = policy[3] || BigInt(0);
+        const total = royaltyPerEpoch * BigInt(jobData.requestedEpochs);
+        escrow = formatUnits(total, 18);
+      } catch (err) {
+        console.error(`Failed to read policy for dataset ${jobData.datasetRoot}:`, err);
       }
+
+      setJob({
+        ...jobData,
+        datasetLabel: `Secure Dataset ${jobData.datasetRoot.slice(2, 6).toUpperCase()}`,
+        purposeLabel: "NEURAL_RESEARCH",
+        providerId: "0G Compute",
+        provider: "0x0000000000000000000000000000000000000000",
+        escrow,
+        createdAt: new Date(Number(jobData.timestamp) * 1000).toISOString(),
+        updatedAt: new Date(Number(jobData.lastUpdatedTimestamp) * 1000).toISOString(),
+        events: json.data.AuditLog || [],
+        policySnapshot: policyDetails ? {
+          manifestHash: policyDetails[2],
+          royaltyPerEpoch: formatUnits(policyDetails[3], 18),
+          accessTtlSeconds: Number(policyDetails[6]),
+          policyExpiry: new Date(Number(policyDetails[7]) * 1000).toISOString()
+        } : null,
+      });
+
+    } catch (e) {
+      console.error("Hydration failed", e);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
     }
-  `;
-  try {
-    const res = await fetch(process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query }),
-      cache: "no-store",
-    });
-    if (!res.ok) return null;
-    const json = await res.json();
-    if (!json.data?.Job?.[0]) return null;
-    return {
-      job: json.data.Job[0],
-      events: json.data.AuditLog || [],
-    };
-  } catch (e) {
-    console.error("Envio fetch failed", e);
-    return null;
-  }
-}
+  }, [jobId]);
 
-async function hydrateJob(jobId: string) {
-  const data = await fetchJobData(jobId);
-  if (!data) return null;
+  React.useEffect(() => {
+    fetchAndHydrate();
+  }, [fetchAndHydrate]);
 
-  const publicClient = getOgPublicClient();
-  const policyAddress = getDataPolicyAddress();
-  let policyDetails: any = null;
-  let escrow = "0";
+  // Polling for Running state
+  React.useEffect(() => {
+    if (!job || job.state !== "Running") return;
 
-  try {
-    const policy: any = await publicClient.readContract({
-      address: policyAddress,
-      abi: DATA_POLICY_ABI,
-      functionName: "policies",
-      args: [data.job.datasetRoot as `0x${string}`],
-    });
-    policyDetails = policy;
-    const royaltyPerEpoch = policy[3] || BigInt(0);
-    const total = royaltyPerEpoch * BigInt(data.job.requestedEpochs);
-    escrow = formatUnits(total, 18);
-  } catch (err) {
-    console.error(`Failed to read policy for dataset ${data.job.datasetRoot}:`, err);
+    const interval = setInterval(() => {
+      fetchAndHydrate(true);
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [job?.state, fetchAndHydrate]);
+
+  if (loading) {
+    return (
+      <div className="flex flex-col min-h-full">
+        <AppTopbar title="Session Detail" />
+        <div className="flex-1 p-6 flex items-center justify-center">
+          <Loader2 className="size-6 animate-spin text-muted-foreground" />
+        </div>
+      </div>
+    );
   }
 
-  return {
-    ...data.job,
-    datasetLabel: `Secure Dataset ${data.job.datasetRoot.slice(2, 6).toUpperCase()}`,
-    purposeLabel: "NEURAL_RESEARCH",
-    providerId: "0G Compute",
-    provider: "0x0000000000000000000000000000000000000000",
-    escrow,
-    createdAt: new Date(Number(data.job.timestamp) * 1000).toISOString(),
-    updatedAt: new Date(Number(data.job.lastUpdatedTimestamp) * 1000).toISOString(),
-    events: data.events,
-    policySnapshot: policyDetails ? {
-      manifestHash: policyDetails[2],
-      royaltyPerEpoch: formatUnits(policyDetails[3], 18),
-      accessTtlSeconds: Number(policyDetails[6]),
-      policyExpiry: new Date(Number(policyDetails[7]) * 1000).toISOString()
-    } : null,
-  };
-}
-
-export default async function JobDetailPage({ params }: { params: Promise<{ jobId: string }> }) {
-  const { jobId } = await params;
-  const job = await hydrateJob(jobId);
-  if (!job) notFound();
+  if (!job) return null;
 
   const timelineNodes = getTimelineNodes(job.state);
   const epochProgress = job.actualEpochs !== null
@@ -156,42 +191,44 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
   const reasonCode = job.failReason;
 
   return (
-    <div className="flex flex-col min-h-full">
+    <div className="flex flex-col min-h-full bg-muted/5">
       <AppTopbar title="Session Detail" />
 
-      <div className="flex-1 p-6 flex flex-col gap-4">
+      <div className="flex-1 p-6 flex flex-col gap-6 max-w-7xl mx-auto w-full">
         {/* Header */}
-        <div className="flex items-start justify-between gap-4">
-          <div className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <Button asChild variant="ghost" size="sm" className="h-7 -ml-2 text-xs text-muted-foreground">
+        <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
+          <div className="flex gap-4 min-w-0">
+             <Button asChild variant="ghost" size="icon" className="h-9 w-9 shrink-0 bg-background border shadow-sm hover:bg-foreground/5">
                 <Link href="/app/sessions">
-                  <ArrowLeftIcon data-icon="inline-start" />
-                  My Sessions
+                  <ArrowLeftIcon className="size-4" />
                 </Link>
               </Button>
+            <div className="flex flex-col gap-1.5 min-w-0">
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold tracking-tight">Session</h1>
+                <HashChip hash={job.id} front={10} back={8} className="bg-background" />
+                <JobStateBadge state={job.state as any} />
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Created {job.createdAt.replace("T", " ").slice(0, 16)} UTC · Last move {job.updatedAt.replace("T", " ").slice(0, 16)} UTC
+              </p>
             </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <HashChip hash={job.id} front={10} back={8} className="text-sm" />
-              <JobStateBadge state={job.state as any} />
-              {job.state === "Running" && (
-                <Badge variant="outline" className="text-[10px] h-4 animate-pulse">live</Badge>
-              )}
-            </div>
-            <p className="text-xs text-muted-foreground">
-              Created {job.createdAt.replace("T", " ").slice(0, 16)} UTC · Updated {job.updatedAt.replace("T", " ").slice(0, 16)} UTC
-            </p>
           </div>
 
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 ml-12 md:ml-0">
+            <Button 
+               variant="outline" 
+               size="sm" 
+               className="h-9 font-semibold gap-2"
+               onClick={() => fetchAndHydrate(true)}
+               disabled={refreshing}
+            >
+              <RefreshCwIcon className={cn("size-3.5", refreshing && "animate-spin")} />
+              Refresh
+            </Button>
             {needsRefund && (
-              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
-                Request refund
-              </Button>
-            )}
-            {job.state === "Completed" && (
-              <Button size="sm" variant="outline" className="h-8 text-xs gap-1.5">
-                Download receipt
+              <Button size="sm" className="h-9 font-bold shadow-md">
+                Claim Refund
               </Button>
             )}
           </div>
@@ -199,24 +236,24 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
 
         {/* Failed / Timeout alert */}
         {(job.state === "Failed" || job.state === "TimedOut") && reasonCode && (
-          <Alert>
-            <AlertDescription className="text-xs">
-              <span className="font-medium">{reasonCode}:</span>{" "}
-              {REASON_MAP[reasonCode] ?? "An unknown error occurred."}{" "}
-              <span className="text-muted-foreground">A refund will be issued automatically, or you can request it below.</span>
+          <Alert variant="destructive" className="bg-destructive/5 border-destructive/20 text-destructive">
+            <AlertDescription className="text-xs font-medium">
+              <span className="font-bold">{reasonCode}:</span>{" "}
+              {REASON_MAP[reasonCode] ?? "An unexpected error occurred during execution."}{" "}
+              Your escrow will be released for refund.
             </AlertDescription>
           </Alert>
         )}
 
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
           {/* Left column */}
-          <div className="flex flex-col gap-4 lg:col-span-2">
-            {/* State Timeline */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Job Timeline</CardTitle>
+          <div className="flex flex-col gap-6 lg:col-span-2">
+            {/* Timeline */}
+            <Card className="border-border/40 shadow-sm">
+              <CardHeader className="py-4 border-b border-border/20 bg-muted/10">
+                <CardTitle className="text-sm font-semibold">Job Lifecycle</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-6">
                 <ol className="flex flex-col gap-0">
                   {timelineNodes.map((node, i) => {
                     const event = job.events.find((e: any) => {
@@ -235,51 +272,57 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
                     const isLast = i === timelineNodes.length - 1;
 
                     return (
-                      <li key={`${node.state}-${i}`} className="flex gap-4">
+                      <li key={`${node.state}-${i}`} className="flex gap-6">
                         {/* Line + dot */}
                         <div className="flex flex-col items-center">
-                          <div className={`size-2 rounded-full mt-1 shrink-0 ${
+                          <div className={cn(
+                            "size-2.5 rounded-full mt-1.5 shrink-0 transition-all duration-500",
                             node.status === "completed" ? "bg-foreground" :
-                            node.status === "active" ? "bg-foreground ring-2 ring-foreground/30" :
-                            node.status === "fork" ? "bg-muted-foreground" :
-                            "bg-border"
-                          }`} />
+                            node.status === "active" ? "bg-foreground ring-4 ring-foreground/10 animate-pulse" :
+                            node.status === "fork" ? "bg-muted-foreground/40" :
+                            "bg-border/60"
+                          )} />
                           {!isLast && (
-                            <div className="w-px flex-1 bg-border my-1" style={{ minHeight: "20px" }} />
+                            <div className="w-px flex-1 bg-border/40 my-1" style={{ minHeight: "40px" }} />
                           )}
                         </div>
 
                         {/* Content */}
-                        <div className="pb-4 flex-1 min-w-0">
+                        <div className="pb-8 flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <span className={`text-sm font-medium ${
-                              node.status === "pending" ? "text-muted-foreground" :
-                              node.status === "fork" ? "text-muted-foreground" : ""
-                            }`}>
+                            <span className={cn(
+                              "text-sm font-bold tracking-tight",
+                              node.status === "pending" ? "text-muted-foreground/60" :
+                              node.status === "fork" ? "text-muted-foreground/60" : "text-foreground"
+                            )}>
                               {node.state as string}
                             </span>
                             {node.status === "active" && job.state === "Running" && (
-                              <Badge variant="outline" className="text-[10px] h-4 animate-pulse">in progress</Badge>
+                              <Badge variant="outline" className="text-[10px] h-4 uppercase tracking-widest font-bold bg-background">processing</Badge>
                             )}
                           </div>
 
                           {event && (
-                            <div className="mt-1 flex items-center gap-2 flex-wrap">
-                              <HashChip hash={event.txHash} label="tx" />
-                              <span className="text-[10px] text-muted-foreground">
-                                {new Date(Number(event.timestamp) * 1000).toISOString().replace("T", " ").slice(0, 16)} UTC
-                              </span>
+                            <div className="mt-2 flex flex-col gap-1.5">
+                              <div className="flex items-center gap-2">
+                                 <HashChip hash={event.txHash} label="tx" className="bg-muted/20" />
+                                 <span className="text-[10px] text-muted-foreground font-medium">
+                                   {new Date(Number(event.timestamp) * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} UTC
+                                 </span>
+                              </div>
                             </div>
                           )}
 
                           {node.status === "active" && job.state === "Running" && (
-                            <div className="mt-2 max-w-xs">
-                              <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                                <span>Epoch progress</span>
-                                <span className="font-mono">{epochProgress}%</span>
+                            <div className="mt-4 max-w-sm bg-muted/20 p-3 rounded-lg border border-border/40">
+                              <div className="flex items-center justify-between text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-2">
+                                <span>Training Progress</span>
+                                <span className="font-mono text-foreground">{epochProgress}%</span>
                               </div>
-                              <Progress value={epochProgress} className="h-1" />
-                              <p className="text-[10px] text-muted-foreground mt-1">off-chain · orchestrator</p>
+                              <Progress value={epochProgress} className="h-1.5 bg-muted/40" />
+                              <p className="text-[10px] text-muted-foreground mt-2 font-medium">
+                                Fine-tuning dataset on 0G Compute node...
+                              </p>
                             </div>
                           )}
                         </div>
@@ -290,163 +333,132 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
               </CardContent>
             </Card>
 
-            {/* Event log */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Event Log</CardTitle>
+            {/* Event log detail */}
+            <Card className="border-border/40 shadow-sm overflow-hidden">
+               <CardHeader className="py-4 border-b border-border/20 bg-muted/10">
+                <CardTitle className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Protocol Audit Log</CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                {job.events.map((e: any, i: number) => (
-                  <div key={i} className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Badge variant="secondary" className="font-mono text-[10px] h-4">{e.eventType}</Badge>
-                      <HashChip hash={e.txHash} label="tx" />
-                      <span className="text-[10px] text-muted-foreground">
-                        {new Date(Number(e.timestamp) * 1000).toISOString().replace("T", " ").slice(0, 16)} UTC
-                      </span>
-                    </div>
-                    {e.details && (
-                      <div className="flex flex-wrap gap-x-4 gap-y-0.5 pl-1">
-                        {Object.entries(JSON.parse(e.details)).map(([k, v]) => (
-                          <span key={k} className="font-mono text-[10px] text-muted-foreground">
-                            <span className="text-foreground">{k}</span>=<span>{v as React.ReactNode}</span>
+              <CardContent className="p-0">
+                <div className="flex flex-col">
+                  {job.events.map((e: any, i: number) => {
+                    const args = e.details ? JSON.parse(e.details) : {};
+                    return (
+                      <div key={i} className="flex flex-col gap-2 p-5 border-b border-border/20 last:border-0 hover:bg-muted/5 transition-colors">
+                        <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-3">
+                             <Badge variant="secondary" className="font-mono text-[9px] font-bold h-5 bg-foreground text-background border-none px-1.5">
+                               {e.eventType}
+                             </Badge>
+                             <HashChip hash={e.txHash} label="tx" front={8} back={6} className="bg-muted/10" />
+                          </div>
+                          <span className="text-[10px] text-muted-foreground font-mono font-medium">
+                            {new Date(Number(e.timestamp) * 1000).toISOString().replace("T", " ").slice(0, 19)}
                           </span>
-                        ))}
+                        </div>
+                        {Object.keys(args).length > 0 && (
+                          <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 mt-1">
+                            {Object.entries(args).map(([k, v]) => (
+                              <div key={k} className="flex items-center gap-1.5 min-w-0">
+                                <span className="text-[9px] font-bold text-muted-foreground uppercase shrink-0">{k}:</span>
+                                <span className="text-[10px] font-mono text-foreground truncate">{String(v)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
                       </div>
-                    )}
-                    {i < job.events.length - 1 && <Separator className="mt-1" />}
-                  </div>
-                ))}
+                    );
+                  })}
+                </div>
               </CardContent>
             </Card>
           </div>
 
           {/* Right column */}
-          <div className="flex flex-col gap-4">
-            {/* Escrow Ledger */}
-            <Card>
-              <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Payment Ledger</CardTitle>
+          <div className="flex flex-col gap-6">
+            {/* Payment Summary */}
+            <Card className="border-border/40 shadow-sm bg-background">
+              <CardHeader className="pb-4">
+                <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Escrow Settlement</CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col gap-2">
-                <LedgerRow label="Locked" value={`${job.escrow} USDC`} txHash={job.events.find((e: any) => e.eventType === "AccessGranted")?.txHash} />
-                {job.royaltySettled && (
-                  <LedgerRow label="Settled to publisher" value={`${formatUnits(BigInt(job.royaltySettled), 18)} USDC`} txHash={job.events.find((e: any) => e.eventType === "RoyaltySettled")?.txHash} />
-                )}
-                {job.refundIssued && (
-                  <LedgerRow label="Refunded to you" value={`${formatUnits(BigInt(job.refundIssued), 18)} USDC`} txHash={job.events.find((e: any) => e.eventType === "RefundIssued")?.txHash} />
-                )}
-                {!job.royaltySettled && !job.refundIssued && (
-                  <p className="text-xs text-muted-foreground">Settlement pending job completion.</p>
-                )}
-                <Separator />
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-muted-foreground">Net cost</span>
-                  <span className="font-mono font-medium">
-                    {job.royaltySettled ? formatUnits(BigInt(job.royaltySettled), 18) : "pending"} USDC
-                  </span>
+              <CardContent className="space-y-6">
+                <div className="space-y-4">
+                  <LedgerRow label="Initial Escrow" value={`${job.escrow} USDC`} isBold />
+                  {job.royaltySettled && (
+                    <LedgerRow label="Publisher Payout" value={`${formatUnits(BigInt(job.royaltySettled), 18)} USDC`} color="text-foreground" />
+                  )}
+                  {job.refundIssued && (
+                    <LedgerRow label="Researcher Refund" value={`${formatUnits(BigInt(job.refundIssued), 18)} USDC`} color="text-foreground" />
+                  )}
+                </div>
+                
+                <Separator className="opacity-40" />
+                
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Final Cost</span>
+                  <p className="text-xl font-bold tracking-tight tabular-nums">
+                    {job.royaltySettled ? `${formatUnits(BigInt(job.royaltySettled), 18)} USDC` : "Pending"}
+                  </p>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Compute */}
-            <Card>
+            {/* Workload Specs */}
+            <Card className="border-border/40 shadow-sm">
               <CardHeader className="pb-3">
-                <CardTitle className="text-sm font-medium">Compute</CardTitle>
+                <CardTitle className="text-[10px] font-bold text-muted-foreground uppercase tracking-widest">Workload Details</CardTitle>
               </CardHeader>
-              <CardContent className="flex flex-col gap-2 text-xs">
-                <InfoRow label="Provider" value={job.providerId} mono={false} />
-                <InfoRow label="Provider addr" value={job.provider} mono />
-                <InfoRow label="Purpose" value={job.purposeLabel} mono />
-                <Separator />
-                <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Epochs</span>
-                  <div className="flex items-center gap-1.5">
-                    {job.actualEpochs !== null ? (
-                      <>
-                        <span className="font-mono font-medium">{job.actualEpochs}</span>
-                        {job.actualEpochs !== job.requestedEpochs && (
-                          <span className="text-muted-foreground font-mono">/ {job.requestedEpochs} req</span>
-                        )}
-                      </>
-                    ) : (
-                      <span className="font-mono text-muted-foreground">{job.requestedEpochs} requested</span>
-                    )}
-                  </div>
+              <CardContent className="space-y-4 text-xs">
+                <div className="space-y-1">
+                   <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">Secure Dataset</p>
+                   <p className="font-bold truncate">{job.datasetLabel}</p>
+                   <HashChip hash={job.datasetRoot} className="mt-1 bg-muted/20" />
                 </div>
-                {job.actualEpochs !== null && job.actualEpochs !== job.requestedEpochs && (
-                  <div className="mt-1">
-                    <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                      <span>actual vs requested</span>
-                      <span className="font-mono">{Math.round((job.actualEpochs / job.requestedEpochs) * 100)}%</span>
-                    </div>
-                    <Progress value={Math.round((job.actualEpochs / job.requestedEpochs) * 100)} className="h-1" />
-                    {job.actualEpochs < job.requestedEpochs && (
-                      <p className="text-[10px] text-muted-foreground mt-1">refund candidate — delta settled on completion</p>
-                    )}
+                <Separator className="opacity-20" />
+                <div className="space-y-3">
+                  <InfoRow label="Compute Cluster" value={job.providerId} />
+                  <InfoRow label="TEEvaddr" value={job.provider} mono />
+                  <InfoRow label="Intent" value={job.purposeLabel} />
+                  <div className="flex items-center justify-between">
+                    <span className="text-muted-foreground">Requested Epochs</span>
+                    <span className="font-mono font-bold">{job.requestedEpochs}</span>
                   </div>
-                )}
-                <Separator />
+                  {job.actualEpochs !== null && (
+                    <div className="flex items-center justify-between pt-1">
+                      <span className="text-muted-foreground">Actual Run-time</span>
+                      <span className="font-mono font-bold text-foreground">{job.actualEpochs} epochs</span>
+                    </div>
+                  )}
+                </div>
+                <Separator className="opacity-20" />
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Proof required</span>
-                  <Badge variant={job.attestationRef ? "outline" : "secondary"} className="text-[10px] h-4">
+                  <span className="text-muted-foreground">Hardware Proof</span>
+                  <Badge variant={job.attestationRef ? "outline" : "secondary"} className="text-[9px] font-bold uppercase tracking-wider h-5 px-2">
                     {job.attestationRef ? "verified" : "pending"}
                   </Badge>
                 </div>
               </CardContent>
             </Card>
 
-            {/* Artifacts */}
-            {(job.resultHash || job.attestationRef) && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-sm font-medium">Artifacts</CardTitle>
+            {/* Results */}
+            {job.resultHash && (
+              <Card className="border-border/40 shadow-sm bg-foreground text-background border-none overflow-hidden relative">
+                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none">
+                   <RefreshCwIcon className="size-20 rotate-12" />
+                </div>
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-[10px] font-bold uppercase tracking-widest opacity-70">Training Artifacts</CardTitle>
                 </CardHeader>
-                <CardContent className="flex flex-col gap-2">
-                  {job.resultHash && (
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs text-muted-foreground">Result hash</span>
-                      <HashChip hash={job.resultHash} front={10} back={8} />
-                    </div>
-                  )}
-                  {job.attestationRef && (
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs text-muted-foreground">Attestation ref</span>
-                      <HashChip hash={job.attestationRef} front={10} back={8} />
-                    </div>
-                  )}
+                <CardContent className="space-y-4">
+                  <div className="space-y-1.5">
+                    <p className="text-[9px] font-bold uppercase tracking-tighter opacity-60">Result Root Hash</p>
+                    <HashChip hash={job.resultHash} front={10} back={8} className="bg-background/10 border-background/20 text-background" />
+                  </div>
+                  <Button variant="secondary" className="w-full h-9 font-bold text-xs shadow-lg">
+                    Download Model Weights
+                  </Button>
                 </CardContent>
               </Card>
             )}
-
-            {/* Policy snapshot */}
-            <Card>
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-sm font-medium">Policy Snapshot</CardTitle>
-                  <Badge variant="secondary" className="text-[10px] h-4">on-chain</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-2 text-xs">
-                <InfoRow label="Dataset" value={job.datasetRoot} mono />
-                <InfoRow label="Manifest" value={job.policySnapshot?.manifestHash ?? "—"} mono />
-                <Separator />
-                <InfoRow label="Rate" value={`${job.policySnapshot?.royaltyPerEpoch ?? "—"} USDC/epoch`} mono={false} />
-                <InfoRow label="Session window" value={`${job.policySnapshot?.accessTtlSeconds ?? "—"}s`} mono={false} />
-                <InfoRow label="Expires" value={job.policySnapshot?.policyExpiry.split("T")[0] ?? "—"} mono={false} />
-                {needsRefund && (
-                  <Button size="sm" className="mt-2 h-8 text-xs w-full">
-                    Request refund
-                  </Button>
-                )}
-                {job.state === "Running" && (
-                  <Button size="sm" variant="outline" className="mt-2 h-8 text-xs w-full gap-1.5">
-                    <RefreshCwIcon className="size-3" />
-                    Refresh status
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
           </div>
         </div>
       </div>
@@ -454,26 +466,23 @@ export default async function JobDetailPage({ params }: { params: Promise<{ jobI
   );
 }
 
-function LedgerRow({ label, value, txHash }: { label: string; value: string; txHash?: string }) {
+function LedgerRow({ label, value, color, isBold }: { label: string; value: string; color?: string; isBold?: boolean }) {
   return (
     <div className="flex items-center justify-between text-xs">
-      <span className="text-muted-foreground">{label}</span>
-      <div className="flex items-center gap-1.5">
-        <span className="font-mono font-medium">{value}</span>
-        {txHash && <HashChip hash={txHash} label="tx" />}
-      </div>
+      <span className="text-muted-foreground font-medium">{label}</span>
+      <span className={cn("font-mono", isBold ? "font-bold text-sm" : "font-medium", color)}>{value}</span>
     </div>
   );
 }
 
-function InfoRow({ label, value, mono }: { label: string; value: string; mono: boolean }) {
+function InfoRow({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
   return (
-    <div className="flex items-center justify-between gap-2">
-      <span className="text-muted-foreground shrink-0">{label}</span>
+    <div className="flex items-center justify-between gap-4">
+      <span className="text-muted-foreground font-medium shrink-0">{label}</span>
       {mono ? (
-        <HashChip hash={value} front={6} back={4} />
+        <HashChip hash={value} front={6} back={4} className="bg-muted/20" />
       ) : (
-        <span className="font-medium text-right">{value}</span>
+        <span className="font-bold text-right truncate">{value}</span>
       )}
     </div>
   );

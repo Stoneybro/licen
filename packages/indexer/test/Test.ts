@@ -1,6 +1,6 @@
 // Tests temporarily removed during refactor
 import {
-  SmartWallet,
+  DataPolicy,
 } from "generated";
 
 // Placeholder

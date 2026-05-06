@@ -4,8 +4,8 @@ import { ethers } from "ethers";
 import type { PublishManifestUploadRequest, PublishManifestUploadResponse } from "@/lib/publish/contracts";
 
 function requireEnv(name: string): string {
-  const value = process.env[name];
-  if (!value) throw new Error(`Missing required env var: ${name}`);
+  const value = process.env[name] || process.env[`NEXT_PUBLIC_${name}`];
+  if (!value) throw new Error(`Missing required env var: ${name} (or NEXT_PUBLIC_${name})`);
   return value;
 }
 

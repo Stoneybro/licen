@@ -29,8 +29,8 @@ export type PublishSubmitRequest = {
   txHash: string;
   ownerAddress: string;
   ownerSignature?: string;
-  /** ECIES-encrypted AES key envelope — stored for orchestrator retrieval */
-  encryptedKeyEnvelope?: string;
+  /** ECIES-encrypted AES key envelope — REQUIRED for orchestrator retrieval */
+  encryptedKeyEnvelope: string;
   policy: PublishPolicyConfig;
   idempotencyKey?: string;
 };
@@ -262,12 +262,8 @@ export function validatePublishSubmitRequest(input: unknown): ValidationResult<P
     errors.push("idempotencyKey must be a non-empty string when provided");
   }
 
-  // encryptedKeyEnvelope is optional — pass through if present, no strict format validation
-  if (
-    input.encryptedKeyEnvelope !== undefined &&
-    typeof input.encryptedKeyEnvelope !== "string"
-  ) {
-    errors.push("encryptedKeyEnvelope must be a string when provided");
+  if (!isNonEmptyString(input.encryptedKeyEnvelope)) {
+    errors.push("encryptedKeyEnvelope is required and must be a non-empty string");
   }
 
   if (errors.length > 0) {

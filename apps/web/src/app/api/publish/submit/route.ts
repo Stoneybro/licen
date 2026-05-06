@@ -34,7 +34,8 @@ export async function POST(request: NextRequest) {
     };
 
     return Response.json(responseBody, { status: 202 });
-  } catch {
+  } catch (error) {
+    console.error("Publish submit error:", error);
     const errorBody: ApiErrorResponse = {
       error: {
         code: "INTERNAL_ERROR",

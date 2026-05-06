@@ -27,8 +27,8 @@ export const DATA_POLICY_ABI = [
     stateMutability: "view",
     inputs: [{ name: "", type: "bytes32" }],
     outputs: [
-      { type: "address" },
       { type: "bytes32" },
+      { type: "address" },
       { type: "bytes32" },
       { type: "uint256" },
       { type: "uint32" },
@@ -40,7 +40,51 @@ export const DATA_POLICY_ABI = [
       { type: "bool" }
     ],
   },
+  {
+    type: "function",
+    name: "requestAccess",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "datasetRoot", type: "bytes32" },
+      { name: "purposeId", type: "bytes32" },
+      { name: "requestedEpochs", type: "uint32" },
+      { name: "termsHash", type: "bytes32" },
+    ],
+    outputs: [{ type: "bytes32", name: "jobId" }],
+  }
 ] as const;
+
+export const ERC20_ABI = [
+  {
+    type: "function",
+    name: "balanceOf",
+    stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "allowance",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "spender", type: "address" },
+    ],
+    outputs: [{ type: "uint256" }],
+  },
+  {
+    type: "function",
+    name: "approve",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint256" },
+    ],
+    outputs: [{ type: "bool" }],
+  }
+] as const;
+
+export const USDC_TOKEN_ADDRESS = "0x6A0C73162c20Bc56212D643112c339f654C45198";
 
 
 

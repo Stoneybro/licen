@@ -98,6 +98,13 @@ export async function createFineTuningTask(params: {
   model?: string;
   requestedEpochs: number;
 }): Promise<DispatchResult> {
+  if (process.env.LICEN_DEMO_MODE === "true") {
+    const { randomUUID } = require("crypto");
+    const taskId = randomUUID();
+    console.warn(`[computeClient] DEMO MODE — skipping 0G SDK, generating fake task: ${taskId}`);
+    return { taskId, providerAddress: "0xdemo" };
+  }
+
   const broker = await getBroker();
   const providerAddress = await discoverProvider();
 

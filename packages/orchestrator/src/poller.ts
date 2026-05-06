@@ -75,13 +75,23 @@ const WEB_API_BASE = process.env.LICEN_WEB_API_URL ?? "http://localhost:3000";
 
 async function fetchKeyEnvelope(datasetRoot: string): Promise<string | null> {
   try {
+    const secret = process.env.ORCHESTRATOR_API_SECRET;
     const res = await fetch(
-      `${WEB_API_BASE}/api/orchestrator/key-envelope?datasetRoot=${encodeURIComponent(datasetRoot)}`
+      `${WEB_API_BASE}/api/orchestrator/key-envelope?datasetRoot=${encodeURIComponent(datasetRoot)}`,
+      {
+        headers: secret ? { "Authorization": `Bearer ${secret}` } : {},
+      }
     );
-    if (!res.ok) return null;
+    if (!res.ok) {
+      if (res.status === 401 || res.status === 503) {
+        console.error(`[poller] Key envelope fetch failed with ${res.status}. Check ORCHESTRATOR_API_SECRET.`);
+      }
+      return null;
+    }
     const body = (await res.json()) as { encryptedKeyEnvelope?: string };
     return body.encryptedKeyEnvelope ?? null;
-  } catch {
+  } catch (err) {
+    console.error(`[poller] Error fetching key envelope for ${datasetRoot}:`, err);
     return null;
   }
 }

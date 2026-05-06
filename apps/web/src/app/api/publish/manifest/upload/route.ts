@@ -89,7 +89,8 @@ export async function POST(request: NextRequest) {
     };
 
     return Response.json(responseBody, { status: 201 });
-  } catch {
+  } catch (error) {
+    console.error("Manifest upload error:", error);
     const errorBody: ApiErrorResponse = {
       error: {
         code: "INTERNAL_ERROR",
