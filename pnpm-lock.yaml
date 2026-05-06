@@ -146,8 +146,8 @@ importers:
         specifier: ^3.2.0
         version: 3.2.0(@types/react@19.2.14)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10)
       ink-big-text:
-        specifier: ^2.0.0
-        version: 2.0.0(ink@3.2.0(@types/react@19.2.14)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)
+        specifier: ^1.2.0
+        version: 1.2.0(ink@3.2.0(@types/react@19.2.14)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)
       ink-spinner:
         specifier: 4.0.2
         version: 4.0.2(ink@3.2.0(@types/react@19.2.14)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0)
@@ -4816,8 +4816,8 @@ packages:
   ccount@2.0.1:
     resolution: {integrity: sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg==}
 
-  cfonts@3.3.1:
-    resolution: {integrity: sha512-ZGEmN3W9mViWEDjsuPo4nK4h39sfh6YtoneFYp9WLPI/rw8BaSSrfQC6jkrGW3JMvV3ZnExJB/AEqXc/nHYxkw==}
+  cfonts@2.10.1:
+    resolution: {integrity: sha512-l5IcLv4SaOdL/EGR6BpOF5SEro88VcGJJ6+xbvJb+wXi19YC6UeHE/brv7a4vIcLZopnt3Ys3zWeNnyfB04UPg==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -6480,12 +6480,12 @@ packages:
     resolution: {integrity: sha512-QQnnxNyfvmHFIsj7gkPcYymR8Jdw/o7mp5ZFihxn6h8Ci6fh3Dx4E1gPjpQEpIuPo9XVNY/ZUwh4BPMjGyL01g==}
     engines: {node: ^14.17.0 || ^16.13.0 || >=18.0.0}
 
-  ink-big-text@2.0.0:
-    resolution: {integrity: sha512-Juzqv+rIOLGuhMJiE50VtS6dg6olWfzFdL7wsU/EARSL5Eaa5JNXMogMBm9AkjgzO2Y3UwWCOh87jbhSn8aNdw==}
-    engines: {node: '>=14.16'}
+  ink-big-text@1.2.0:
+    resolution: {integrity: sha512-xDfn8oOhiji9c4wojTKSaBnEfgpTTd3KL7jsMYVht4SbpfLdSKvVZiMi3U5v45eSjLm1ycMmeMWAP1G99lWL5Q==}
+    engines: {node: '>=8'}
     peerDependencies:
-      ink: '>=4'
-      react: '>=18'
+      ink: '>=2.0.0'
+      react: '>=16.8.0'
 
   ink-spinner@4.0.2:
     resolution: {integrity: sha512-vQGmhWUEh3IG1IxK1Hl2w6RfH6aaRIJWw9lrG8CvFFyrQ23UpJ8GClJs5/sFBxkNvsrrK9sKNEGlGnsqTYiUww==}
@@ -15954,9 +15954,9 @@ snapshots:
 
   ccount@2.0.1: {}
 
-  cfonts@3.3.1:
+  cfonts@2.10.1:
     dependencies:
-      supports-color: 8.1.1
+      chalk: 4.1.2
       window-size: 1.1.1
 
   chai@4.3.10:
@@ -18035,9 +18035,9 @@ snapshots:
 
   ini@4.1.1: {}
 
-  ink-big-text@2.0.0(ink@3.2.0(@types/react@19.2.14)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0):
+  ink-big-text@1.2.0(ink@3.2.0(@types/react@19.2.14)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10))(react@18.2.0):
     dependencies:
-      cfonts: 3.3.1
+      cfonts: 2.10.1
       ink: 3.2.0(@types/react@19.2.14)(bufferutil@4.1.0)(react@18.2.0)(utf-8-validate@5.0.10)
       prop-types: 15.8.1
       react: 18.2.0

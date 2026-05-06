@@ -25,7 +25,7 @@
     "@rescript/react": "^0.12.1",
     "envio": "2.32.3",
     "ink": "^3.2.0",
-    "ink-big-text": "^2.0.0",
+    "ink-big-text": "^1.2.0",
     "ink-spinner": "4.0.2",
     "js-sdsl": "^4.4.2",
     "postgres": "^3.4.9",
