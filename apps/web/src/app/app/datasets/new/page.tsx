@@ -523,16 +523,11 @@ export default function NewDatasetPage() {
             {/* 1. Dataset Source & Info */}
             <section id="details" className="scroll-mt-32">
               <div className="mb-6">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <div className="size-8 rounded-lg bg-foreground/5 flex items-center justify-center text-foreground border border-foreground/10">
-                    <FileJson className="size-4" />
-                  </div>
-                  Dataset Source & Basic Info
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1 ml-10">Select your dataset and provide identifying details for researchers.</p>
+                <h3 className="text-lg font-semibold">Dataset Source & Basic Info</h3>
+                <p className="text-sm text-muted-foreground mt-1">Select your dataset and provide identifying details for researchers.</p>
               </div>
 
-              <div className="grid gap-6 ml-10">
+              <div className="grid gap-6">
                 <Card className="border-dashed bg-muted/5 group hover:bg-muted/10 transition-colors cursor-pointer relative overflow-hidden">
                   <input 
                     type="file" 
@@ -582,17 +577,21 @@ export default function NewDatasetPage() {
 
             {/* 2. Allowed Purposes */}
             <section id="purposes" className="scroll-mt-32">
-              <div className="mb-6">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <div className="size-8 rounded-lg bg-foreground/5 flex items-center justify-center text-foreground border border-foreground/10">
-                    <ShieldCheck className="size-4" />
-                  </div>
-                  Allowed Research Purposes
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1 ml-10">Select which research domains are authorized to access this data.</p>
+              <div className="mb-6 flex items-center justify-between">
+                <div>
+                  <h3 className="text-lg font-semibold">Allowed Research Purposes</h3>
+                  <p className="text-sm text-muted-foreground mt-1">Select which research domains are authorized to access this data.</p>
+                </div>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={() => setAllowedPurposeIds([...PUBLISH_PURPOSES])}
+                >
+                  Select All
+                </Button>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 ml-10">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(PURPOSE_META).map(([id, meta]) => (
                   <div 
                     key={id}
@@ -629,98 +628,68 @@ export default function NewDatasetPage() {
             {/* 3. Access Policy */}
             <section id="policy" className="scroll-mt-32">
               <div className="mb-6">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <div className="size-8 rounded-lg bg-foreground/5 flex items-center justify-center text-foreground border border-foreground/10">
-                    <DollarSign className="size-4" />
-                  </div>
-                  Economic & Access Policy
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1 ml-10">Define the royalties and limits for data usage.</p>
+                <h3 className="text-lg font-semibold">Economic & Access Policy</h3>
+                <p className="text-sm text-muted-foreground mt-1">Define the royalties and limits for data usage.</p>
               </div>
 
-              <div className="ml-10 space-y-8">
-                <div className="grid md:grid-cols-2 gap-8">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Royalty Per Epoch</label>
-                      <span className="text-sm font-mono font-bold">{royaltyPerEpoch} USDC</span>
-                    </div>
-                    <Input 
-                      type="range" min="0" max="1000" step="5" 
-                      className="accent-foreground h-1.5"
-                      value={royaltyPerEpoch}
-                      onChange={(e) => setRoyaltyPerEpoch(Number(e.target.value))}
-                    />
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-muted/30 p-2 rounded">
-                      <Info className="size-3" />
-                      Paid per training epoch by the researcher.
-                    </div>
+              <div className="grid gap-6 md:grid-cols-2">
+                <div className="space-y-2">
+                  <div className="flex flex-col">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-foreground">Price Per Training Cycle (USDC)</label>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">How much researchers pay you per training epoch.</span>
                   </div>
-
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Max Epochs Per Run</label>
-                      <span className="text-sm font-mono font-bold">{maxEpochsPerRun} Epochs</span>
-                    </div>
-                    <Input 
-                      type="range" min="1" max="100" step="1" 
-                      className="accent-foreground h-1.5"
-                      value={maxEpochsPerRun}
-                      onChange={(e) => setMaxEpochsPerRun(Number(e.target.value))}
-                    />
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground bg-muted/30 p-2 rounded">
-                      <Info className="size-3" />
-                      Maximum fine-tuning duration allowed per request.
-                    </div>
-                  </div>
+                  <Input 
+                    type="number"
+                    min="0"
+                    className="bg-background mt-1"
+                    value={royaltyPerEpoch}
+                    onChange={(e) => setRoyaltyPerEpoch(Number(e.target.value))}
+                  />
                 </div>
 
-                <div className="grid md:grid-cols-3 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Runs Per Wallet</label>
-                    <Input 
-                      type="number" 
-                      className="bg-background"
-                      value={maxRunsPerRequester}
-                      onChange={(e) => setMaxRunsPerRequester(Number(e.target.value))}
-                    />
+                <div className="space-y-2">
+                  <div className="flex flex-col">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-foreground">Maximum Training Cycles</label>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">The limit of epochs a researcher can run in a single job.</span>
                   </div>
-                  <div className="space-y-2">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Access TTL ({ttlUnit})</label>
-                    <div className="flex gap-2">
-                      <Input 
-                        type="number" 
-                        className="bg-background flex-1"
-                        value={ttlValue}
-                        onChange={(e) => setTtlValue(Number(e.target.value))}
-                      />
-                      <select 
-                        className="bg-background border rounded-md px-2 text-xs font-medium"
-                        value={ttlUnit}
-                        onChange={(e) => setTtlUnit(e.target.value as any)}
-                      >
-                        <option value="hours">Hr</option>
-                        <option value="days">Day</option>
-                        <option value="weeks">Wk</option>
-                      </select>
-                    </div>
+                  <Input 
+                    type="number"
+                    min="1"
+                    className="bg-background mt-1"
+                    value={maxEpochsPerRun}
+                    onChange={(e) => setMaxEpochsPerRun(Number(e.target.value))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex flex-col">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-foreground">Usage Limit Per Researcher</label>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">Max times a single researcher can train on this dataset.</span>
                   </div>
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Policy Expiry</label>
-                      <div className="flex items-center gap-2">
-                        <span className="text-[10px] text-muted-foreground">None</span>
-                        <Switch checked={noPolicyExpiry} onCheckedChange={setNoPolicyExpiry} />
-                      </div>
-                    </div>
-                    <Input 
-                      type="date" 
-                      disabled={noPolicyExpiry}
-                      className="bg-background disabled:opacity-30"
-                      value={policyExpiry}
-                      onChange={(e) => setPolicyExpiry(e.target.value)}
-                    />
+                  <Input 
+                    type="number" 
+                    min="1"
+                    className="bg-background mt-1"
+                    value={maxRunsPerRequester}
+                    onChange={(e) => setMaxRunsPerRequester(Number(e.target.value))}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex flex-col">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-foreground">Access Duration (Days)</label>
+                    <span className="text-[10px] text-muted-foreground mt-0.5">How long a researcher's access is valid after approval.</span>
                   </div>
+                  <Input 
+                    type="number" 
+                    min="1"
+                    className="bg-background mt-1"
+                    value={ttlValue}
+                    onChange={(e) => {
+                      setTtlValue(Number(e.target.value));
+                      setTtlUnit("days");
+                    }}
+                  />
                 </div>
               </div>
             </section>
@@ -730,44 +699,52 @@ export default function NewDatasetPage() {
             {/* 4. Advanced Details */}
             <section id="advanced" className="scroll-mt-32">
               <div className="mb-6">
-                <h3 className="text-lg font-semibold flex items-center gap-2">
-                  <div className="size-8 rounded-lg bg-foreground/5 flex items-center justify-center text-foreground border border-foreground/10">
-                    <Plus className="size-4" />
-                  </div>
-                  Advanced Manifest Options
-                </h3>
-                <p className="text-sm text-muted-foreground mt-1 ml-10">Add specific legal, compliance, or attribution requirements to your manifest.</p>
+                <h3 className="text-lg font-semibold">Advanced Options</h3>
+                <p className="text-sm text-muted-foreground mt-1">Add specific legal, compliance, or attribution requirements to your manifest.</p>
               </div>
 
-              <div className="ml-10">
-                <Accordion type="multiple" className="w-full space-y-3">
+              <div>
+                <Accordion type="multiple" className="w-full space-y-4">
                   {OPTIONAL_MANIFEST_SECTIONS.map((section) => (
                     <AccordionItem 
                       key={section.id} 
                       value={section.id}
                       className={cn(
-                        "border rounded-xl px-4 bg-background transition-colors",
-                        enabledManifestSections.includes(section.id) ? "border-foreground/20" : "border-transparent"
+                        "border rounded-xl bg-background/50 overflow-hidden transition-all duration-200",
+                        enabledManifestSections.includes(section.id) 
+                          ? "border-foreground/30 shadow-sm ring-1 ring-foreground/5" 
+                          : "border-border/60 hover:border-foreground/20"
                       )}
                     >
-                      <div className="flex items-center justify-between py-1">
-                        <AccordionTrigger className="flex-1 hover:no-underline py-3">
-                          <span className="text-sm font-medium">{section.label}</span>
-                        </AccordionTrigger>
-                        <div className="flex items-center pr-4">
-                          <Switch 
-                            checked={enabledManifestSections.includes(section.id)} 
-                            onCheckedChange={(checked) => {
-                              if (checked) setEnabledManifestSections(prev => [...prev, section.id]);
-                              else setEnabledManifestSections(prev => prev.filter(id => id !== section.id));
-                            }}
-                          />
+                      <AccordionTrigger className="hover:no-underline px-5 py-4 w-full">
+                        <div className="flex flex-1 items-center justify-between pr-4 w-full">
+                          <div className="flex flex-col items-start text-left gap-1 pr-4">
+                            <span className="text-sm font-semibold">{section.label}</span>
+                            <span className="text-xs text-muted-foreground font-normal">{section.placeholder}</span>
+                          </div>
+                          <div className="flex items-center shrink-0 mr-2" onClick={e => e.stopPropagation()}>
+                            <Switch 
+                              checked={enabledManifestSections.includes(section.id)} 
+                              onCheckedChange={(checked) => {
+                                if (checked) {
+                                  setEnabledManifestSections(prev => [...prev, section.id]);
+                                } else {
+                                  setEnabledManifestSections(prev => prev.filter(id => id !== section.id));
+                                  setOptionalManifestValues(prev => ({ ...prev, [section.id]: "" }));
+                                }
+                              }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                      <AccordionContent className="pb-4">
+                      </AccordionTrigger>
+                      <AccordionContent className="px-5 pb-5 pt-1">
                         <Textarea 
-                          placeholder={section.placeholder}
-                          className="min-h-24 bg-muted/20 border-none resize-none text-xs"
+                          placeholder={`Enter details for ${section.label.toLowerCase()}...`}
+                          className={cn(
+                            "min-h-32 bg-background border-input resize-none text-sm p-4 transition-all focus-visible:ring-1",
+                            !enabledManifestSections.includes(section.id) && "opacity-50 cursor-not-allowed bg-muted/50"
+                          )}
+                          disabled={!enabledManifestSections.includes(section.id)}
                           value={optionalManifestValues[section.id]}
                           onChange={(e) => setOptionalManifestValues(prev => ({ ...prev, [section.id]: e.target.value }))}
                         />

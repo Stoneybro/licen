@@ -51,7 +51,7 @@ export function AppTopbar({ title }: { title?: string }) {
       functionName: "balanceOf",
       args: [walletAddress as `0x${string}`],
     }).then(b => {
-      setBalance(Number(formatUnits(b as bigint, 18)).toFixed(2));
+      setBalance(Number(formatUnits(b as bigint, 6)).toFixed(2));
     }).catch(console.error);
   }, [walletAddress]);
 

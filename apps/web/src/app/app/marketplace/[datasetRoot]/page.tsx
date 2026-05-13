@@ -71,7 +71,7 @@ export default function MarketplaceDetailPage() {
           owner: d.owner,
           manifestHash: d.manifestHash,
           active: d.active,
-          label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
+          label: `Dataset ${d.id.slice(0, 10)}`,
           description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
           royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
           maxEpochsPerRun: Number(policy[4] || 0),
@@ -79,7 +79,7 @@ export default function MarketplaceDetailPage() {
           accessTtlSeconds: Number(policy[6] || 0),
           requireResultAttestation: policy[8] || false,
           openRequesters: policy[10] || false,
-          allowedPurposeIds: ["0x6e657572616c5f72657365617263680000000000000000000000000000000000"],
+          allowedPurposeIds: ["0x4e5609cbe0fd5356bb6b2036533ec04d260155597359f601778166b6c3049ed8"],
         });
       } catch (e) {
         console.error("Hydration failed", e);

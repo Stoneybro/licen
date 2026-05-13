@@ -100,7 +100,7 @@ export default function AuditDatasetPage() {
             royaltyPerEpoch: policy ? formatUnits(policy[3] || BigInt(0), 18) : "0",
             lifetimeRoyalties: formatUnits(lifetimeRoyalties, 18),
             jobCount: datasetJobs.length,
-            allowedPurposeIds: ["0x6e657572616c5f72657365617263680000000000000000000000000000000000"],
+            allowedPurposeIds: ["0x4e5609cbe0fd5356bb6b2036533ec04d260155597359f601778166b6c3049ed8"],
           },
           jobs: datasetJobs.map((j: any) => ({
             ...j,

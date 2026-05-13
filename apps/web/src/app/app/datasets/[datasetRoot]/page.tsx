@@ -92,7 +92,7 @@ export default function DatasetDetailPage() {
           maxRunsPerRequester: Number(policy[5] || 0),
           openRequesters: policy[10] || false,
           requireResultAttestation: policy[8] || false,
-          allowedPurposeIds: ["0x6e657572616c5f72657365617263680000000000000000000000000000000000"],
+          allowedPurposeIds: ["0x4e5609cbe0fd5356bb6b2036533ec04d260155597359f601778166b6c3049ed8"],
           policyExpiry: policy[7] ? new Date(Number(policy[7]) * 1000).toISOString() : "2026-12-31T00:00:00Z",
           lifetimeRoyalties: formatUnits(lifetimeRoyalties, 18),
           jobCount: jobList.length,

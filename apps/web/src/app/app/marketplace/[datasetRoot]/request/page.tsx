@@ -94,12 +94,12 @@ export default function RequestAccessPage() {
       const hydrated = {
         datasetRoot: d.id,
         manifestHash: d.manifestHash,
-        label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
-        royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
+        label: `Dataset ${d.id.slice(0, 10)}`,
+        royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
         royaltyPerEpochRaw: policy[3] || BigInt(0),
         maxEpochsPerRun: Number(policy[4] || 0),
         requireResultAttestation: policy[8] || false,
-        allowedPurposeIds: ["0x6e657572616c5f72657365617263680000000000000000000000000000000000"],
+        allowedPurposeIds: ["0x4e5609cbe0fd5356bb6b2036533ec04d260155597359f601778166b6c3049ed8"],
       };
 
       setDataset(hydrated);
@@ -136,7 +136,7 @@ export default function RequestAccessPage() {
         })
       ]);
 
-      setBalanceStr(Number(formatUnits(b as bigint, 18)).toFixed(2));
+      setBalanceStr(Number(formatUnits(b as bigint, 6)).toFixed(2));
       setAllowance(allow as bigint);
     } catch (e) {
       console.error(e);
@@ -152,7 +152,7 @@ export default function RequestAccessPage() {
 
   const epochsNum = parseInt(epochs, 10) || 0;
   const quoteRaw = BigInt(epochsNum) * (dataset?.royaltyPerEpochRaw || BigInt(0));
-  const quote = Number(formatUnits(quoteRaw, 18));
+  const quote = Number(formatUnits(quoteRaw, 6));
   
   React.useEffect(() => {
     setHasBalance(parseFloat(balanceStr) >= quote);

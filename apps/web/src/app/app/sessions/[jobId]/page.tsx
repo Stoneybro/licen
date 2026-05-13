@@ -123,14 +123,14 @@ export default function JobDetailPage() {
         policyDetails = policy;
         const royaltyPerEpoch = policy[3] || BigInt(0);
         const total = royaltyPerEpoch * BigInt(jobData.requestedEpochs);
-        escrow = formatUnits(total, 18);
+        escrow = formatUnits(total, 6);
       } catch (err) {
         console.error(`Failed to read policy for dataset ${jobData.datasetRoot}:`, err);
       }
 
       setJob({
         ...jobData,
-        datasetLabel: `Secure Dataset ${jobData.datasetRoot.slice(2, 6).toUpperCase()}`,
+        datasetLabel: `Dataset ${jobData.datasetRoot.slice(0, 10)}`,
         purposeLabel: "NEURAL_RESEARCH",
         providerId: "0G Compute",
         provider: "0x0000000000000000000000000000000000000000",
@@ -140,7 +140,7 @@ export default function JobDetailPage() {
         events: json.data.AuditLog || [],
         policySnapshot: policyDetails ? {
           manifestHash: policyDetails[2],
-          royaltyPerEpoch: formatUnits(policyDetails[3], 18),
+          royaltyPerEpoch: formatUnits(policyDetails[3], 6),
           accessTtlSeconds: Number(policyDetails[6]),
           policyExpiry: new Date(Number(policyDetails[7]) * 1000).toISOString()
         } : null,
@@ -158,13 +158,14 @@ export default function JobDetailPage() {
     fetchAndHydrate();
   }, [fetchAndHydrate]);
 
-  // Polling for Running state
+  // Poll while the job is in any active (non-terminal) state
+  const ACTIVE_STATES = ["Requested", "Granted", "Dispatching", "Running"];
   React.useEffect(() => {
-    if (!job || job.state !== "Running") return;
+    if (!job || !ACTIVE_STATES.includes(job.state)) return;
 
     const interval = setInterval(() => {
       fetchAndHydrate(true);
-    }, 10000);
+    }, 8000);
 
     return () => clearInterval(interval);
   }, [job?.state, fetchAndHydrate]);
@@ -384,10 +385,10 @@ export default function JobDetailPage() {
                 <div className="space-y-4">
                   <LedgerRow label="Initial Escrow" value={`${job.escrow} USDC`} isBold />
                   {job.royaltySettled && (
-                    <LedgerRow label="Publisher Payout" value={`${formatUnits(BigInt(job.royaltySettled), 18)} USDC`} color="text-foreground" />
+                    <LedgerRow label="Publisher Payout" value={`${formatUnits(BigInt(job.royaltySettled), 6)} USDC`} color="text-foreground" />
                   )}
                   {job.refundIssued && (
-                    <LedgerRow label="Researcher Refund" value={`${formatUnits(BigInt(job.refundIssued), 18)} USDC`} color="text-foreground" />
+                    <LedgerRow label="Researcher Refund" value={`${formatUnits(BigInt(job.refundIssued), 6)} USDC`} color="text-foreground" />
                   )}
                 </div>
                 
@@ -396,7 +397,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Final Cost</span>
                   <p className="text-xl font-bold tracking-tight tabular-nums">
-                    {job.royaltySettled ? `${formatUnits(BigInt(job.royaltySettled), 18)} USDC` : "Pending"}
+                    {job.royaltySettled ? `${formatUnits(BigInt(job.royaltySettled), 6)} USDC` : "Pending"}
                   </p>
                 </div>
               </CardContent>
@@ -453,8 +454,12 @@ export default function JobDetailPage() {
                     <p className="text-[9px] font-bold uppercase tracking-tighter opacity-60">Result Root Hash</p>
                     <HashChip hash={job.resultHash} front={10} back={8} className="bg-background/10 border-background/20 text-background" />
                   </div>
-                  <Button variant="secondary" className="w-full h-9 font-bold text-xs shadow-lg">
-                    Download Model Weights
+                  <Button
+                    variant="secondary"
+                    className="w-full h-9 font-bold text-xs shadow-lg"
+                    onClick={() => window.open(`/api/mock/model/${job.id}`, "_blank")}
+                  >
+                    Download LoRA Adapter
                   </Button>
                 </CardContent>
               </Card>

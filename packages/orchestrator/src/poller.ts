@@ -175,7 +175,12 @@ export function startPoller(): void {
   );
   console.log(`[poller] Envio endpoint: ${ENVIO_GRAPHQL_URL}`);
 
+  const safePoll = () =>
+    poll().catch((e) =>
+      console.error("[poller] Poll error (will retry):", e.message)
+    );
+
   // Run immediately, then on interval
-  poll();
-  setInterval(poll, POLL_INTERVAL_MS);
+  safePoll();
+  setInterval(safePoll, POLL_INTERVAL_MS);
 }

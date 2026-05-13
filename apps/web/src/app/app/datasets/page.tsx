@@ -88,7 +88,7 @@ export default function DatasetsPage() {
               return {
                 datasetRoot: d.id,
                 active: d.active,
-                label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
+                label: `Dataset ${d.id.slice(0, 10)}`,
                 description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
                 royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
                 maxEpochsPerRun: Number(policy[4] || 0),

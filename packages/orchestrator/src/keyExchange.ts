@@ -14,16 +14,14 @@
  * Encryption scheme (must match apps/web/src/lib/key-exchange/ecies.ts):
  *   Ephemeral secp256k1 ECDH → HKDF-SHA256 → AES-256-GCM
  *   Envelope: [33 bytes ephemeral pubkey][12 bytes IV][16 bytes GCM tag][N bytes ciphertext]
+ *
+ * Implementation note:
+ *   We use Node.js built-in `crypto` for all operations (ECDH via createECDH,
+ *   HKDF via hkdfSync, AES-GCM via createDecipheriv) to avoid depending on
+ *   @noble/curves which has an incompatible ESM exports map on this Node version.
  */
 
-// eslint-disable-next-line @typescript-eslint/ban-ts-comment
-// @ts-ignore — resolved via pnpm node_modules symlink
-import { secp256k1 } from "@noble/curves/secp256k1";
-// @ts-ignore
-import { hkdf } from "@noble/hashes/hkdf";
-// @ts-ignore
-import { sha256 } from "@noble/hashes/sha256";
-import { createDecipheriv } from "node:crypto";
+import { createECDH, createDecipheriv, hkdfSync } from "node:crypto";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,8 +37,12 @@ export type UnsealedKey = {
 };
 
 // ---------------------------------------------------------------------------
-// Core
+// Helpers
 // ---------------------------------------------------------------------------
+
+function hexToBytes(hex: string): Buffer {
+  return Buffer.from(hex.replace(/^0x/, ""), "hex");
+}
 
 function getPrivateKeyHex(): string {
   const hex = process.env["ORCHESTRATOR_PRIVATE_KEY"];
@@ -52,14 +54,9 @@ function getPrivateKeyHex(): string {
   return hex.replace(/^0x/, "");
 }
 
-function hexToBytes(hex: string): Uint8Array {
-  const clean = hex.replace(/^0x/, "");
-  const arr = new Uint8Array(clean.length / 2);
-  for (let i = 0; i < arr.length; i++) {
-    arr[i] = parseInt(clean.slice(i * 2, i * 2 + 2), 16);
-  }
-  return arr;
-}
+// ---------------------------------------------------------------------------
+// Core
+// ---------------------------------------------------------------------------
 
 /**
  * Unseal an ECIES key envelope produced by the publisher's browser
@@ -88,44 +85,43 @@ export function unsealDatasetKey(envelopeHex: string): UnsealedKey {
   }
 
   // Unpack envelope
-  const ephemeralPubKey = envelope.subarray(0, 33);
-  const gcmIv = envelope.subarray(33, 45);
-  const authTag = envelope.subarray(45, 61);
-  const ciphertext = envelope.subarray(61);
+  const ephemeralPubKey = envelope.subarray(0, 33);  // compressed secp256k1 point
+  const gcmIv           = envelope.subarray(33, 45); // 12-byte IV
+  const authTag         = envelope.subarray(45, 61); // 16-byte GCM tag
+  const ciphertext      = envelope.subarray(61);
 
-  // ECDH: shared secret using our private key + ephemeral public key
-  const privKeyBytes = hexToBytes(getPrivateKeyHex());
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call, @typescript-eslint/no-unsafe-member-access
-  const sharedPoint = secp256k1.getSharedSecret(privKeyBytes, ephemeralPubKey) as Uint8Array;
-  const sharedSecret = sharedPoint.slice(1, 33); // x-coordinate only
+  // ECDH: compute shared secret using our secp256k1 private key + ephemeral public key
+  const ecdh = createECDH("prime256v1"); // Note: prime256v1 = NIST P-256
+  // For secp256k1, Node's built-in createECDH supports it directly
+  const ecdhK1 = createECDH("secp256k1");
+  ecdhK1.setPrivateKey(hexToBytes(getPrivateKeyHex()));
 
-  // Derive symmetric key via HKDF-SHA256
-  // eslint-disable-next-line @typescript-eslint/no-unsafe-call
-  const symmetricKey = hkdf(sha256, sharedSecret, undefined, undefined, 32) as Uint8Array;
+  // computeSecret returns the x-coordinate of the shared point (32 bytes)
+  const sharedSecret = ecdhK1.computeSecret(ephemeralPubKey);
 
-  // AES-256-GCM decrypt — use NodeJS.ArrayBufferView-compatible Uint8Array
-  const decipher = createDecipheriv(
-    "aes-256-gcm",
-    symmetricKey as unknown as NodeJS.ArrayBufferView,
-    gcmIv as unknown as NodeJS.ArrayBufferView
+  // Derive symmetric key via HKDF-SHA256 (Node 15+ built-in)
+  const symmetricKey = Buffer.from(
+    hkdfSync("sha256", sharedSecret, Buffer.alloc(0), Buffer.alloc(0), 32)
   );
-  decipher.setAuthTag(authTag as unknown as NodeJS.ArrayBufferView);
 
-  const dec1 = decipher.update(ciphertext as unknown as NodeJS.ArrayBufferView);
+  // AES-256-GCM decrypt
+  const decipher = createDecipheriv("aes-256-gcm", symmetricKey, gcmIv);
+  decipher.setAuthTag(authTag);
+
+  const dec1 = decipher.update(ciphertext);
   const dec2 = decipher.final();
 
-  // Concatenate decrypted chunks into a single Uint8Array
-  const plaintext = new Uint8Array(dec1.length + dec2.length);
-  plaintext.set(dec1, 0);
-  plaintext.set(dec2, dec1.length);
+  // Concatenate decrypted chunks
+  const plaintext = Buffer.concat([dec1, dec2]);
 
   // Unpack plaintext: [0..31] = AES key, [32..43] = file IV
-  const aesKey = plaintext.slice(0, 32);
-  const iv = plaintext.slice(32, 44);
+  const aesKey = new Uint8Array(plaintext.subarray(0, 32));
+  const iv     = new Uint8Array(plaintext.subarray(32, 44));
 
-  // Zero intermediates
+  // Zero intermediates immediately
   plaintext.fill(0);
   symmetricKey.fill(0);
+  sharedSecret.fill(0);
 
   return {
     aesKey,

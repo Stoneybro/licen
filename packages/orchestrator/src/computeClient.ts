@@ -19,7 +19,17 @@ import { createRequire } from "module";
 const require = createRequire(import.meta.url);
 // Use require() to avoid ethers ESM/CJS dual-build type conflict
 const { ethers } = require("ethers") as typeof import("ethers");
-import { createZGComputeNetworkBroker } from "@0gfoundation/0g-compute-ts-sdk";
+
+// Lazy-load the 0G compute SDK only when needed (not in demo mode)
+// This avoids ESM/CJS compatibility errors at startup
+let _createZGComputeNetworkBroker: typeof import("@0gfoundation/0g-compute-ts-sdk")["createZGComputeNetworkBroker"] | null = null;
+async function getComputeSdk() {
+  if (!_createZGComputeNetworkBroker) {
+    const mod = require("@0gfoundation/0g-compute-ts-sdk");
+    _createZGComputeNetworkBroker = mod.createZGComputeNetworkBroker;
+  }
+  return _createZGComputeNetworkBroker!;
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -42,7 +52,7 @@ export interface DispatchResult {
 // Broker singleton
 // ---------------------------------------------------------------------------
 
-let brokerInstance: Awaited<ReturnType<typeof createZGComputeNetworkBroker>> | null = null;
+let brokerInstance: any = null;
 
 async function getBroker() {
   if (brokerInstance) return brokerInstance;
@@ -54,7 +64,8 @@ async function getBroker() {
   const provider = new ethers.JsonRpcProvider(rpcUrl);
   const wallet = new ethers.Wallet(privateKey.startsWith("0x") ? privateKey : `0x${privateKey}`, provider);
 
-  brokerInstance = await createZGComputeNetworkBroker(wallet as any);
+  const createBroker = await getComputeSdk();
+  brokerInstance = await createBroker(wallet as any);
   return brokerInstance;
 }
 
