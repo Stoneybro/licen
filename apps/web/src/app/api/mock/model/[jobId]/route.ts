@@ -11,9 +11,9 @@ import type { NextRequest } from "next/server";
  */
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { jobId: string } }
+  { params }: { params: Promise<{ jobId: string }> }
 ) {
-  const { jobId } = params;
+  const { jobId } = await params;
 
   // Build a plausible mock LoRA adapter manifest
   const mockManifest = {
