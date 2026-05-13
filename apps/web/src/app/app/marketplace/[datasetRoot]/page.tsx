@@ -73,7 +73,7 @@ export default function MarketplaceDetailPage() {
           active: d.active,
           label: `Dataset ${d.id.slice(0, 10)}`,
           description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
-          royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
+          royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
           maxEpochsPerRun: Number(policy[4] || 0),
           maxRunsPerRequester: Number(policy[5] || 0),
           accessTtlSeconds: Number(policy[6] || 0),

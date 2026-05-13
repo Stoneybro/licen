@@ -4,6 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "pnpm --filter web dev",
+    "dev:stack": "bash scripts/dev-stack.sh",
     "build": "pnpm --recursive build",
     "test": "pnpm --recursive test"
   }

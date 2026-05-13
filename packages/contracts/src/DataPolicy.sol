@@ -29,6 +29,7 @@ contract DataPolicy {
     // Arrays/mappings for policy lists
     mapping(bytes32 => mapping(bytes32 => bool)) public allowedPurposeIds;
     mapping(bytes32 => mapping(address => bool)) public allowedRequesters;
+    mapping(bytes32 => mapping(address => uint32)) public requesterRunCounts;
 
     // Job state tracking
     enum JobState { None, Requested, Granted, Running, Completed, Failed, TimedOut, Refunded }
@@ -149,6 +150,7 @@ contract DataPolicy {
         require(block.timestamp < policy.policyExpiry || policy.policyExpiry == 0, "Policy expired");
         require(termsHash == policy.manifestHash, "Terms hash mismatch");
         require(requestedEpochs <= policy.maxEpochsPerRun, "Exceeds max epochs per run");
+        require(requesterRunCounts[datasetRoot][msg.sender] < policy.maxRunsPerRequester, "Requester run limit reached");
         require(allowedPurposeIds[datasetRoot][purposeId], "Purpose not allowed");
         
         if (!policy.openRequesters) {
@@ -156,6 +158,7 @@ contract DataPolicy {
         }
 
         uint256 requiredEscrow = policy.royaltyPerEpoch * requestedEpochs;
+        requesterRunCounts[datasetRoot][msg.sender] += 1;
 
         jobCounter++;
         jobId = keccak256(abi.encodePacked(datasetRoot, msg.sender, jobCounter, block.timestamp));
@@ -197,6 +200,10 @@ contract DataPolicy {
         require(job.state == JobState.Running || job.state == JobState.Granted, "Invalid state transition");
         
         Policy memory policy = policies[job.datasetRoot];
+        require(actualEpochs <= job.requestedEpochs, "Actual epochs exceed requested");
+        if (policy.requireResultAttestation) {
+            require(attestationRef != bytes32(0), "Attestation required");
+        }
 
         job.state = JobState.Completed;
 

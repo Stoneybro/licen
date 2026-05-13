@@ -16,7 +16,7 @@ import { HashChip } from "@/components/app/hash-chip";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { PURPOSES } from "@/lib/mock";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress, getOgChain, ERC20_ABI, USDC_TOKEN_ADDRESS } from "@/lib/publish/onchain";
-import { formatUnits, createPublicClient, http, encodeFunctionData, parseUnits, type Address, type Hex } from "viem";
+import { formatUnits, createPublicClient, http, encodeFunctionData, type Address, type Hex } from "viem";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { cn } from "@/lib/utils";
 
@@ -164,6 +164,21 @@ export default function RequestAccessPage() {
     fetchOnChainData();
   }, [fetchDataset, fetchOnChainData]);
 
+  const waitForTx = React.useCallback(async (txHash: string) => {
+    const rpcUrl = process.env.NEXT_PUBLIC_OG_EVM_RPC_URL || "https://evmrpc-testnet.0g.ai";
+    const client = createPublicClient({
+      chain: getOgChain(rpcUrl),
+      transport: http(rpcUrl),
+    });
+
+    return client.waitForTransactionReceipt({
+      hash: txHash as `0x${string}`,
+      confirmations: 1,
+      pollingInterval: 1500,
+      timeout: 120000,
+    });
+  }, []);
+
   const epochsNum = parseInt(epochs, 10) || 0;
   const quoteRaw = BigInt(epochsNum) * (dataset?.royaltyPerEpochRaw || BigInt(0));
   const quote = Number(formatUnits(quoteRaw, 6));
@@ -222,21 +237,19 @@ export default function RequestAccessPage() {
           args: [policyAddress, quoteRaw * BigInt(2)], // Approve 2x to be safe or just exact
         });
 
-        await ethereumProvider.request({
+        const approveTxHash = await ethereumProvider.request({
           method: "eth_sendTransaction",
           params: [{ from: walletAddress as Address, to: USDC_TOKEN_ADDRESS, data: approveData }],
-        });
+        }) as string;
         
-        setSubmissionStep("Waiting for approval...");
+        setSubmissionStep("Waiting for approval confirmation...");
         setSubmissionProgress(50);
-        // We don't wait for receipt to avoid the "receipt not found" UX issue, 
-        // but in a real app we might poll allowance. 
-        // For now, we'll wait a bit then proceed.
-        await new Promise(r => setTimeout(w => r(w), 4000));
+        await waitForTx(approveTxHash);
+        await fetchOnChainData();
       }
 
       // 2. Request Access
-      setSubmissionStep("Broadcasting request...");
+      setSubmissionStep("Locking escrow...");
       setSubmissionProgress(70);
 
       const requestData = encodeFunctionData({
@@ -253,14 +266,13 @@ export default function RequestAccessPage() {
       const txHash = await ethereumProvider.request({
         method: "eth_sendTransaction",
         params: [{ from: walletAddress as Address, to: policyAddress, data: requestData }],
-      });
+      }) as string;
 
       console.log("Transaction sent:", txHash);
-      setSubmissionStep("Finalizing request...");
+      setSubmissionStep("Waiting for escrow confirmation...");
       setSubmissionProgress(90);
-
-      // Wait a bit to ensure it's at least in the mempool/indexed
-      await new Promise(r => setTimeout(w => r(w), 3000));
+      await waitForTx(txHash);
+      await fetchOnChainData();
 
       setSubmissionProgress(100);
       setSuccess(true);

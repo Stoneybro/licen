@@ -24,8 +24,11 @@ contract DataPolicyTest is Test {
     address public provider = address(3);
     
     bytes32 public datasetRoot = keccak256("dataset_root");
+    bytes32 public datasetRootOpen = keccak256("dataset_root_open");
     bytes32 public manifestHash = keccak256("manifest_hash");
     bytes32 public purposeId = keccak256("NEURAL_RESEARCH");
+    bytes32 public disallowedPurposeId = keccak256("COMMERCIAL_R_AND_D");
+    address public otherRequester = address(4);
 
     function setUp() public {
         lusd = new MockLUSD();
@@ -33,6 +36,7 @@ contract DataPolicyTest is Test {
 
         // Fund requester
         lusd.mint(requester, 1000000 * 10**18);
+        lusd.mint(otherRequester, 1000000 * 10**18);
     }
 
     function test_RegisterDataset() public {
@@ -175,5 +179,161 @@ contract DataPolicyTest is Test {
         
         // Requester should get 10 lUSD refund (60 locked - 50 settled)
         assertEq(lusd.balanceOf(requester) - requesterInitialBalance, 10 * 10**18);
+    }
+
+    function test_RequestAccess_RevertsWhenExceedingMaxRunsPerRequester() public {
+        vm.startPrank(owner);
+
+        bytes32[] memory purposes = new bytes32[](1);
+        purposes[0] = purposeId;
+
+        address[] memory requesters = new address[](1);
+        requesters[0] = requester;
+
+        policy.registerDataset(
+            datasetRoot,
+            manifestHash,
+            10 * 10**18,
+            10,
+            1,
+            3600,
+            0,
+            true,
+            false,
+            purposes,
+            requesters
+        );
+        vm.stopPrank();
+
+        vm.startPrank(requester);
+        lusd.approve(address(policy), type(uint256).max);
+        policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
+        vm.expectRevert("Requester run limit reached");
+        policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
+        vm.stopPrank();
+    }
+
+    function test_RequestAccess_RevertsWhenRequesterNotAllowed() public {
+        _registerDefaultDataset();
+
+        vm.startPrank(otherRequester);
+        lusd.approve(address(policy), type(uint256).max);
+        vm.expectRevert("Requester not allowed");
+        policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
+        vm.stopPrank();
+    }
+
+    function test_RequestAccess_AllowsOpenRequesterPolicy() public {
+        vm.startPrank(owner);
+
+        bytes32[] memory purposes = new bytes32[](1);
+        purposes[0] = purposeId;
+
+        policy.registerDataset(
+            datasetRootOpen,
+            manifestHash,
+            10 * 10**18,
+            10,
+            2,
+            3600,
+            0,
+            false,
+            true,
+            purposes,
+            new address[](0)
+        );
+        vm.stopPrank();
+
+        vm.startPrank(otherRequester);
+        lusd.approve(address(policy), type(uint256).max);
+        bytes32 jobId = policy.requestAccess(datasetRootOpen, purposeId, 1, manifestHash);
+        vm.stopPrank();
+
+        (, address jobRequester, , , , , , DataPolicy.JobState state, ) = policy.jobs(jobId);
+        assertEq(jobRequester, otherRequester);
+        assertEq(uint(state), uint(DataPolicy.JobState.Granted));
+    }
+
+    function test_RequestAccess_RevertsWhenPurposeNotAllowed() public {
+        _registerDefaultDataset();
+
+        vm.startPrank(requester);
+        lusd.approve(address(policy), type(uint256).max);
+        vm.expectRevert("Purpose not allowed");
+        policy.requestAccess(datasetRoot, disallowedPurposeId, 1, manifestHash);
+        vm.stopPrank();
+    }
+
+    function test_RequestAccess_RevertsWhenExceedingMaxEpochsPerRun() public {
+        _registerDefaultDataset();
+
+        vm.startPrank(requester);
+        lusd.approve(address(policy), type(uint256).max);
+        vm.expectRevert("Exceeds max epochs per run");
+        policy.requestAccess(datasetRoot, purposeId, 11, manifestHash);
+        vm.stopPrank();
+    }
+
+    function test_RequestAccess_RevertsWhenPolicyExpired() public {
+        vm.startPrank(owner);
+
+        bytes32[] memory purposes = new bytes32[](1);
+        purposes[0] = purposeId;
+
+        address[] memory requesters = new address[](1);
+        requesters[0] = requester;
+
+        policy.registerDataset(
+            datasetRoot,
+            manifestHash,
+            10 * 10**18,
+            10,
+            1,
+            3600,
+            uint64(block.timestamp + 1),
+            true,
+            false,
+            purposes,
+            requesters
+        );
+        vm.stopPrank();
+
+        vm.warp(block.timestamp + 2);
+
+        vm.startPrank(requester);
+        lusd.approve(address(policy), type(uint256).max);
+        vm.expectRevert("Policy expired");
+        policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
+        vm.stopPrank();
+    }
+
+    function test_ConfirmTrainingComplete_RevertsWhenAttestationRequiredButMissing() public {
+        _registerDefaultDataset();
+
+        vm.startPrank(requester);
+        lusd.approve(address(policy), type(uint256).max);
+        bytes32 jobId = policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
+        vm.stopPrank();
+
+        vm.startPrank(provider);
+        policy.startJob(jobId);
+        vm.expectRevert("Attestation required");
+        policy.confirmTrainingComplete(jobId, 1, keccak256("result"), bytes32(0));
+        vm.stopPrank();
+    }
+
+    function test_ConfirmTrainingComplete_RevertsWhenActualEpochsExceedRequested() public {
+        _registerDefaultDataset();
+
+        vm.startPrank(requester);
+        lusd.approve(address(policy), type(uint256).max);
+        bytes32 jobId = policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
+        vm.stopPrank();
+
+        vm.startPrank(provider);
+        policy.startJob(jobId);
+        vm.expectRevert("Actual epochs exceed requested");
+        policy.confirmTrainingComplete(jobId, 2, keccak256("result"), keccak256("attestation"));
+        vm.stopPrank();
     }
 }

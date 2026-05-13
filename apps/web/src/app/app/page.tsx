@@ -44,11 +44,50 @@ export default function PublisherDashboard() {
         const json = await res.json();
         const indexerDatasets = json.data?.Dataset || [];
 
+        const jobStatsResults = await Promise.all(
+          indexerDatasets.map(async (d: any) => {
+            try {
+              const jobQuery = `query DatasetJobs {
+                Job(where: { datasetRoot: { _ilike: "${d.id}" } }) {
+                  state
+                  royaltySettled
+                }
+              }`;
+              const jr = await fetch(process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ query: jobQuery }),
+              });
+              const jj = await jr.json();
+              const jobs: any[] = jj.data?.Job || [];
+              const lifetimeRoyalties = jobs.reduce((acc: bigint, j: any) => {
+                return acc + (j.royaltySettled ? BigInt(j.royaltySettled) : BigInt(0));
+              }, BigInt(0));
+              const activeJobCount = jobs.filter((j: any) =>
+                ["Requested", "Granted", "Dispatching", "Running"].includes(j.state)
+              ).length;
+              return {
+                lifetimeRoyalties: formatUnits(lifetimeRoyalties, 6),
+                jobCount: jobs.length,
+                activeJobCount,
+              };
+            } catch (err) {
+              console.error(err);
+              return {
+                lifetimeRoyalties: "0",
+                jobCount: 0,
+                activeJobCount: 0,
+              };
+            }
+          })
+        );
+
         const publicClient = getOgPublicClient();
         const policyAddress = getDataPolicyAddress();
 
         const hydrated = await Promise.all(
-          indexerDatasets.map(async (d: any) => {
+          indexerDatasets.map(async (d: any, idx: number) => {
+            const stats = jobStatsResults[idx];
             try {
               const policy: any = await publicClient.readContract({
                 address: policyAddress,
@@ -60,10 +99,10 @@ export default function PublisherDashboard() {
                 datasetRoot: d.id,
                 active: d.active,
                 label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
-                royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
-                lifetimeRoyalties: "0",
-                jobCount: 0,
-                activeJobCount: 0,
+                royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
+                lifetimeRoyalties: stats.lifetimeRoyalties,
+                jobCount: stats.jobCount,
+                activeJobCount: stats.activeJobCount,
               };
             } catch (err) {
               console.error(err);
@@ -73,8 +112,9 @@ export default function PublisherDashboard() {
         );
 
         setMyDatasets(hydrated.filter(Boolean));
-        // Mocking the active jobs until the orchestrator is built.
-        setActiveJobsOnMyDatasets([]);
+        setActiveJobsOnMyDatasets(
+          hydrated.filter((d): d is NonNullable<typeof d> => Boolean(d) && d.activeJobCount > 0)
+        );
       } catch (err) {
         console.error(err);
       } finally {

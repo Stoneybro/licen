@@ -63,8 +63,10 @@ export default function DatasetsPage() {
               const lifetimeRoyalties = jobs.reduce((acc: bigint, j: any) => {
                 return acc + (j.royaltySettled ? BigInt(j.royaltySettled) : BigInt(0));
               }, BigInt(0));
-              const activeJobCount = jobs.filter((j: any) => j.state === "Running" || j.state === "Granted").length;
-              return { lifetimeRoyalties: formatUnits(lifetimeRoyalties, 18), jobCount: jobs.length, activeJobCount };
+              const activeJobCount = jobs.filter((j: any) =>
+                ["Requested", "Granted", "Dispatching", "Running"].includes(j.state)
+              ).length;
+              return { lifetimeRoyalties: formatUnits(lifetimeRoyalties, 6), jobCount: jobs.length, activeJobCount };
             } catch {
               return { lifetimeRoyalties: "0", jobCount: 0, activeJobCount: 0 };
             }
@@ -90,7 +92,7 @@ export default function DatasetsPage() {
                 active: d.active,
                 label: `Dataset ${d.id.slice(0, 10)}`,
                 description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
-                royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
+                royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
                 maxEpochsPerRun: Number(policy[4] || 0),
                 maxRunsPerRequester: Number(policy[5] || 0),
                 openRequesters: policy[10] || false,

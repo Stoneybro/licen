@@ -73,7 +73,7 @@ export default function ResearcherDashboard() {
             });
             const royaltyPerEpoch = policy[3] || BigInt(0);
             const total = royaltyPerEpoch * BigInt(j.requestedEpochs);
-            escrow = formatUnits(total, 18);
+            escrow = formatUnits(total, 6);
           } catch (err) {
             console.error(`Failed to read policy for dataset ${j.datasetRoot}:`, err);
           }
@@ -86,7 +86,7 @@ export default function ResearcherDashboard() {
             purposeLabel: "NEURAL_RESEARCH",
             requestedEpochs: j.requestedEpochs,
             escrow,
-            settledAmount: j.royaltySettled ? formatUnits(BigInt(j.royaltySettled), 18) : null,
+            settledAmount: j.royaltySettled ? formatUnits(BigInt(j.royaltySettled), 6) : null,
             state: j.state,
           };
         })
@@ -165,8 +165,8 @@ export default function ResearcherDashboard() {
             {
               label: "Active Sessions",
               value: activeJobs.length,
-              sub: "running on 0G compute",
-              note: "Jobs executing in secure TEEs",
+              sub: "in flight right now",
+              note: "Requested, granted, dispatching, or running",
             },
             {
               label: "Total Spent",

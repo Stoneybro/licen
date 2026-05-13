@@ -124,9 +124,9 @@ export function buildRegisterDatasetArgs(input: {
     ttlSeconds,
     BigInt(input.policy.policyExpiry),
     false,
-    true,
+    input.policy.openRequesters,
     input.policy.allowedPurposeIds.map(purposeToBytes32),
-    [] as Address[],
+    input.policy.allowedRequesters.map((address) => address as Address),
   ] as const;
 }
 

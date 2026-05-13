@@ -97,8 +97,8 @@ export default function AuditDatasetPage() {
             owner: d.owner,
             manifestHash: d.manifestHash,
             active: d.active,
-            royaltyPerEpoch: policy ? formatUnits(policy[3] || BigInt(0), 18) : "0",
-            lifetimeRoyalties: formatUnits(lifetimeRoyalties, 18),
+            royaltyPerEpoch: policy ? formatUnits(policy[3] || BigInt(0), 6) : "0",
+            lifetimeRoyalties: formatUnits(lifetimeRoyalties, 6),
             jobCount: datasetJobs.length,
             allowedPurposeIds: ["0x4e5609cbe0fd5356bb6b2036533ec04d260155597359f601778166b6c3049ed8"],
           },
@@ -237,7 +237,7 @@ export default function AuditDatasetPage() {
                         <div className="flex flex-col items-end gap-2 shrink-0">
                            <JobStateBadge state={j.state as JobState} />
                            {j.royaltySettled && (
-                              <span className="font-mono text-[10px] font-bold text-foreground">{formatUnits(BigInt(j.royaltySettled), 18)} USDC settled</span>
+                              <span className="font-mono text-[10px] font-bold text-foreground">{formatUnits(BigInt(j.royaltySettled), 6)} USDC settled</span>
                            )}
                         </div>
                       </Link>

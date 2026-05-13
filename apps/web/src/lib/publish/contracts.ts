@@ -20,6 +20,8 @@ export type PublishPolicyConfig = {
   maxRunsPerRequester: number;
   ttlHours: number;
   policyExpiry: number;
+  openRequesters: boolean;
+  allowedRequesters: string[];
 };
 
 export type PublishSubmitRequest = {
@@ -255,6 +257,23 @@ export function validatePublishSubmitRequest(input: unknown): ValidationResult<P
 
     if (typeof policy.policyExpiry !== "number" || policy.policyExpiry < 0) {
       errors.push("policy.policyExpiry must be a non-negative number");
+    }
+
+    if (typeof policy.openRequesters !== "boolean") {
+      errors.push("policy.openRequesters must be a boolean");
+    }
+
+    if (!Array.isArray(policy.allowedRequesters)) {
+      errors.push("policy.allowedRequesters must be an array");
+    } else {
+      const invalidRequesters = policy.allowedRequesters.filter((value) => !isHexString(value));
+      if (invalidRequesters.length > 0) {
+        errors.push("policy.allowedRequesters contains invalid wallet addresses");
+      }
+
+      if (policy.openRequesters === false && policy.allowedRequesters.length === 0) {
+        errors.push("policy.allowedRequesters must contain at least one wallet when openRequesters is false");
+      }
     }
   }
 

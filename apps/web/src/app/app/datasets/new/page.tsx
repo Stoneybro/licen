@@ -119,6 +119,18 @@ function formatPurposeLabel(value: PublishPurpose) {
     .join(" ");
 }
 
+function parseAllowedRequesterList(value: string): string[] {
+  return Array.from(
+    new Set(
+      value
+        .split(/[\n,\s]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+        .map((item) => item.toLowerCase())
+    )
+  );
+}
+
 function formatBytes(bytes: number) {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
@@ -156,6 +168,8 @@ export default function NewDatasetPage() {
   const [ttlUnit, setTtlUnit] = useState<"hours" | "days" | "weeks">("days");
   const [policyExpiry, setPolicyExpiry] = useState<string>("");
   const [noPolicyExpiry, setNoPolicyExpiry] = useState(true);
+  const [openRequesters, setOpenRequesters] = useState(true);
+  const [allowedRequestersInput, setAllowedRequestersInput] = useState("");
 
   const [publishing, setPublishing] = useState(false);
   const [publishingStep, setPublishingStep] = useState<string | null>(null);
@@ -280,6 +294,21 @@ export default function NewDatasetPage() {
       return;
     }
 
+    const allowedRequesters = parseAllowedRequesterList(allowedRequestersInput);
+    if (!openRequesters) {
+      if (allowedRequesters.length === 0) {
+        setErrorMessage("Add at least one researcher wallet when access is restricted.");
+        document.getElementById("policy")?.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+      const invalidRequester = allowedRequesters.find((value) => !isAddress(value));
+      if (invalidRequester) {
+        setErrorMessage(`Invalid researcher wallet address: ${invalidRequester}`);
+        document.getElementById("policy")?.scrollIntoView({ behavior: "smooth" });
+        return;
+      }
+    }
+
     try {
       setStatus(null);
       setRequestId(null);
@@ -333,6 +362,8 @@ export default function NewDatasetPage() {
         maxRunsPerRequester,
         ttlHours,
         policyExpiry: noPolicyExpiry || !policyExpiry ? 0 : Math.floor(new Date(policyExpiry).getTime() / 1000),
+        openRequesters,
+        allowedRequesters: openRequesters ? [] : allowedRequesters,
       };
 
       const optionalManifestSections = enabledManifestSections.reduce<Record<string, string>>((acc, sectionId) => {
@@ -691,6 +722,37 @@ export default function NewDatasetPage() {
                     }}
                   />
                 </div>
+              </div>
+
+              <div className="mt-6 rounded-xl border border-border/60 bg-background/60 p-4">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="space-y-1">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-foreground">Researcher Access</label>
+                    <p className="text-[10px] text-muted-foreground">
+                      Open access allows any wallet to request training. Restricted access only allows approved researcher wallets.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className={cn("text-xs", !openRequesters && "text-muted-foreground")}>Restricted</span>
+                    <Switch checked={openRequesters} onCheckedChange={setOpenRequesters} />
+                    <span className={cn("text-xs", openRequesters && "font-medium")}>Open</span>
+                  </div>
+                </div>
+
+                {!openRequesters && (
+                  <div className="mt-4 space-y-2">
+                    <label className="text-xs font-semibold uppercase tracking-wider text-foreground">Allowed Researcher Wallets</label>
+                    <Textarea
+                      value={allowedRequestersInput}
+                      onChange={(e) => setAllowedRequestersInput(e.target.value)}
+                      placeholder={"0x1234...\n0xabcd...\nComma or newline separated"}
+                      className="min-h-28 bg-background resize-none"
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Enter one wallet per line, or separate multiple wallets with commas.
+                    </p>
+                  </div>
+                )}
               </div>
             </section>
 

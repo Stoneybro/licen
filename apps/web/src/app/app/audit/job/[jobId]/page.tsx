@@ -116,11 +116,11 @@ export default async function AuditJobPage({ params }: { params: Promise<{ jobId
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Settled royalty</span>
-              <span className="font-mono font-medium">{j.royaltySettled ? `${formatUnits(BigInt(j.royaltySettled), 18)} USDC` : "—"}</span>
+              <span className="font-mono font-medium">{j.royaltySettled ? `${formatUnits(BigInt(j.royaltySettled), 6)} USDC` : "—"}</span>
             </div>
             <div className="flex items-center justify-between">
               <span className="text-muted-foreground">Refund issued</span>
-              <span className="font-mono font-medium">{j.refundIssued ? `${formatUnits(BigInt(j.refundIssued), 18)} USDC` : "—"}</span>
+              <span className="font-mono font-medium">{j.refundIssued ? `${formatUnits(BigInt(j.refundIssued), 6)} USDC` : "—"}</span>
             </div>
             {j.resultHash && (
               <>

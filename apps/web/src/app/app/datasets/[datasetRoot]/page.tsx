@@ -87,14 +87,14 @@ export default function DatasetDetailPage() {
           active: d.active,
           label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
           description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
-          royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 18),
+          royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
           maxEpochsPerRun: Number(policy[4] || 0),
           maxRunsPerRequester: Number(policy[5] || 0),
           openRequesters: policy[10] || false,
           requireResultAttestation: policy[8] || false,
           allowedPurposeIds: ["0x4e5609cbe0fd5356bb6b2036533ec04d260155597359f601778166b6c3049ed8"],
           policyExpiry: policy[7] ? new Date(Number(policy[7]) * 1000).toISOString() : "2026-12-31T00:00:00Z",
-          lifetimeRoyalties: formatUnits(lifetimeRoyalties, 18),
+          lifetimeRoyalties: formatUnits(lifetimeRoyalties, 6),
           jobCount: jobList.length,
         });
 
@@ -103,7 +103,7 @@ export default function DatasetDetailPage() {
           state: j.state,
           requestedEpochs: j.requestedEpochs,
           actualEpochs: j.actualEpochs,
-          settledAmount: j.royaltySettled ? formatUnits(BigInt(j.royaltySettled), 18) : null,
+          settledAmount: j.royaltySettled ? formatUnits(BigInt(j.royaltySettled), 6) : null,
           createdAt: new Date(Number(j.timestamp) * 1000).toISOString(),
         })));
 
