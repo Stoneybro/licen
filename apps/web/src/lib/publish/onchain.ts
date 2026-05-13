@@ -1,4 +1,4 @@
-import { createPublicClient, defineChain, http, isAddress, keccak256, toHex, type Address, type Hex } from "viem";
+import { createPublicClient, defineChain, http, isAddress, keccak256, parseUnits, toHex, type Address, type Hex } from "viem";
 import type { PublishPolicyConfig, PublishPurpose } from "@/lib/publish/contracts";
 
 export const DATA_POLICY_ABI = [
@@ -117,7 +117,8 @@ export function buildRegisterDatasetArgs(input: {
   return [
     input.datasetRoot,
     input.manifestHash,
-    BigInt(Math.max(1, Math.floor(input.policy.royaltyPerEpoch))),
+    // royaltyPerEpoch: user enters whole USDC (e.g. "10"), encode as 6-decimal raw units (MockUSDC = 6 decimals)
+    parseUnits(String(Math.max(0, input.policy.royaltyPerEpoch)), 6),
     toUint32(input.policy.maxEpochsPerRun),
     toUint32(input.policy.maxRunsPerRequester),
     ttlSeconds,

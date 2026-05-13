@@ -22,6 +22,18 @@ import { cn } from "@/lib/utils";
 
 const STEPS = ["Configure", "Review", "Confirm"];
 
+// MockUSDC exposes a public mint() — anyone can call it on testnet
+const MINT_ABI = [{
+  type: "function",
+  name: "mint",
+  stateMutability: "nonpayable",
+  inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }],
+  outputs: [],
+}] as const;
+
+// How much test USDC to mint per tap (1000 USDC = 1_000_000_000 raw units with 6 decimals)
+const FAUCET_AMOUNT_RAW = BigInt(1_000 * 1_000_000);
+
 function getPurposeLabel(id: string): string {
   // Try to match by ID or just return the ID
   const found = PURPOSES.find((p) => p.id.toLowerCase() === id.toLowerCase());
@@ -56,6 +68,8 @@ export default function RequestAccessPage() {
   const [submissionProgress, setSubmissionProgress] = React.useState(0);
   const [submissionError, setSubmissionError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
+  const [minting, setMinting] = React.useState(false);
+  const [mintError, setMintError] = React.useState<string | null>(null);
 
   const fetchDataset = React.useCallback(async () => {
     if (!datasetRoot) return;
@@ -157,6 +171,32 @@ export default function RequestAccessPage() {
   React.useEffect(() => {
     setHasBalance(parseFloat(balanceStr) >= quote);
   }, [balanceStr, quote]);
+
+  const handleMintUsdc = async () => {
+    setMintError(null);
+    setMinting(true);
+    try {
+      const activeWallet = wallets.find((w) => w.address.toLowerCase() === walletAddress?.toLowerCase());
+      if (!activeWallet) throw new Error("Wallet not found");
+      const ethereumProvider = await activeWallet.getEthereumProvider();
+      const mintData = encodeFunctionData({
+        abi: MINT_ABI,
+        functionName: "mint",
+        args: [walletAddress as Address, FAUCET_AMOUNT_RAW],
+      });
+      await ethereumProvider.request({
+        method: "eth_sendTransaction",
+        params: [{ from: walletAddress as Address, to: USDC_TOKEN_ADDRESS, data: mintData }],
+      });
+      // Wait for tx to propagate then refresh balance
+      await new Promise(r => setTimeout(r, 3500));
+      await fetchOnChainData();
+    } catch (err: any) {
+      setMintError(err?.message || "Mint failed");
+    } finally {
+      setMinting(false);
+    }
+  };
 
   const handleRequestAccess = async () => {
     setSubmissionError(null);
@@ -439,12 +479,28 @@ export default function RequestAccessPage() {
                   </span>
                 </div>
                 {!hasBalance && (
-                  <Alert variant="destructive" className="py-2 bg-destructive/5 border-destructive/20">
-                    <AlertTriangleIcon className="size-3" />
-                    <AlertDescription className="text-[10px] font-medium">
-                      Insufficient USDC. You need {quote} but have {balanceStr}.
-                    </AlertDescription>
-                  </Alert>
+                  <div className="flex flex-col gap-2">
+                    <Alert variant="destructive" className="py-2 bg-destructive/5 border-destructive/20">
+                      <AlertTriangleIcon className="size-3" />
+                      <AlertDescription className="text-[10px] font-medium">
+                        Insufficient USDC. You need {quote} but have {balanceStr}.
+                      </AlertDescription>
+                    </Alert>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-8 text-[11px] border-dashed border-amber-500/40 text-amber-500 hover:bg-amber-500/5 hover:text-amber-400"
+                      onClick={handleMintUsdc}
+                      disabled={minting}
+                    >
+                      {minting ? (
+                        <><Loader2 className="size-3 mr-1.5 animate-spin" />Minting test USDC...</>
+                      ) : (
+                        <>⚡ Get 1,000 Test USDC (Testnet Faucet)</>
+                      )}
+                    </Button>
+                    {mintError && <p className="text-[10px] text-destructive">{mintError}</p>}
+                  </div>
                 )}
               </div>
 

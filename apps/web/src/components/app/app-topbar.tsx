@@ -14,12 +14,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ChevronDownIcon, CoinsIcon, WalletIcon } from "lucide-react";
-import { usePrivy } from "@privy-io/react-auth";
+import { ChevronDownIcon, CoinsIcon, Loader2, WalletIcon, ZapIcon } from "lucide-react";
+import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { truncHash } from "@/lib/mock";
 import { toast } from "sonner";
-import { createPublicClient, http, formatUnits } from "viem";
-import { getOgChain } from "@/lib/publish/onchain";
+import { createPublicClient, encodeFunctionData, http, formatUnits, type Address } from "viem";
+import { getOgChain, USDC_TOKEN_ADDRESS } from "@/lib/publish/onchain";
 
 const ERC20_ABI = [
   {
@@ -28,39 +28,81 @@ const ERC20_ABI = [
     stateMutability: "view",
     inputs: [{ name: "account", type: "address" }],
     outputs: [{ type: "uint256" }],
-  }
+  },
 ] as const;
 
-const TOKEN_ADDRESS = "0x6A0C73162c20Bc56212D643112c339f654C45198";
+const MINT_ABI = [
+  {
+    type: "function",
+    name: "mint",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }],
+    outputs: [],
+  },
+] as const;
+
+// 1,000 USDC in raw units (6 decimals)
+const FAUCET_AMOUNT = BigInt(1_000 * 1_000_000);
 
 export function AppTopbar({ title }: { title?: string }) {
   const { user, logout } = usePrivy();
+  const { wallets } = useWallets();
   const walletAddress = user?.wallet?.address;
   const [balance, setBalance] = React.useState<string>("0");
+  const [minting, setMinting] = React.useState(false);
 
-  React.useEffect(() => {
+  const refreshBalance = React.useCallback(() => {
     if (!walletAddress) return;
     const rpcUrl = process.env.NEXT_PUBLIC_OG_EVM_RPC_URL || "https://evmrpc-testnet.0g.ai";
-    const client = createPublicClient({
-      chain: getOgChain(rpcUrl),
-      transport: http(rpcUrl)
-    });
-    client.readContract({
-      address: TOKEN_ADDRESS,
-      abi: ERC20_ABI,
-      functionName: "balanceOf",
-      args: [walletAddress as `0x${string}`],
-    }).then(b => {
-      setBalance(Number(formatUnits(b as bigint, 6)).toFixed(2));
-    }).catch(console.error);
+    const client = createPublicClient({ chain: getOgChain(rpcUrl), transport: http(rpcUrl) });
+    client
+      .readContract({
+        address: USDC_TOKEN_ADDRESS as `0x${string}`,
+        abi: ERC20_ABI,
+        functionName: "balanceOf",
+        args: [walletAddress as `0x${string}`],
+      })
+      .then((b) => setBalance(Number(formatUnits(b as bigint, 6)).toFixed(2)))
+      .catch(console.error);
   }, [walletAddress]);
+
+  React.useEffect(() => {
+    refreshBalance();
+  }, [refreshBalance]);
+
+  const handleMintUsdc = async () => {
+    if (!walletAddress) return;
+    setMinting(true);
+    try {
+      const activeWallet = wallets.find(
+        (w) => w.address.toLowerCase() === walletAddress.toLowerCase()
+      );
+      if (!activeWallet) throw new Error("Wallet not found");
+      const provider = await activeWallet.getEthereumProvider();
+      const data = encodeFunctionData({
+        abi: MINT_ABI,
+        functionName: "mint",
+        args: [walletAddress as Address, FAUCET_AMOUNT],
+      });
+      await provider.request({
+        method: "eth_sendTransaction",
+        params: [{ from: walletAddress as Address, to: USDC_TOKEN_ADDRESS, data }],
+      });
+      toast.success("⚡ Minting 1,000 test USDC — balance will update shortly.");
+      await new Promise((r) => setTimeout(r, 4500));
+      refreshBalance();
+    } catch (e: any) {
+      toast.error(e?.message || "Mint failed");
+    } finally {
+      setMinting(false);
+    }
+  };
 
   const handleCopyAddress = async () => {
     if (!walletAddress) {
       toast.error("No wallet address to copy");
       return;
     }
-
     try {
       await navigator.clipboard.writeText(walletAddress);
       toast.success("Wallet address copied");
@@ -93,9 +135,7 @@ export function AppTopbar({ title }: { title?: string }) {
             </Badge>
           </TooltipTrigger>
           <TooltipContent>
-            <p className="text-xs">
-              Live on-chain balance
-            </p>
+            <p className="text-xs">Live on-chain MockUSDC balance</p>
           </TooltipContent>
         </Tooltip>
 
@@ -116,8 +156,23 @@ export function AppTopbar({ title }: { title?: string }) {
             <DropdownMenuItem className="text-xs" onClick={handleCopyAddress}>
               Copy wallet address
             </DropdownMenuItem>
+            <DropdownMenuItem
+              className="text-xs gap-2"
+              onClick={handleMintUsdc}
+              disabled={minting}
+            >
+              {minting ? (
+                <Loader2 className="size-3 animate-spin" />
+              ) : (
+                <ZapIcon className="size-3 text-amber-400" />
+              )}
+              {minting ? "Minting..." : "Get 1,000 Test USDC"}
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
-            <DropdownMenuItem className="text-xs text-muted-foreground" onClick={handleLogout}>
+            <DropdownMenuItem
+              className="text-xs text-muted-foreground"
+              onClick={handleLogout}
+            >
               Disconnect
             </DropdownMenuItem>
           </DropdownMenuContent>
