@@ -412,6 +412,18 @@ export default function NewDatasetPage() {
         txHash: "0x",
         ownerAddress: walletAddress,
         encryptedKeyEnvelope: sealResult.encryptedKeyEnvelope,
+        manifestSummary: {
+          title: manifestObj.title,
+          description: manifestObj.description,
+          createdAt: manifestObj.createdAt,
+          ownerAddress: manifestObj.ownerAddress,
+          legalText: manifestObj.legalText,
+          usageTaxonomy: manifestObj.usageTaxonomy,
+          taskConstraints: manifestObj.taskConstraints,
+          complianceNotes: manifestObj.complianceNotes,
+          attribution: manifestObj.attribution,
+          derivativeRights: manifestObj.derivativeRights,
+        },
         policy: policyConfig,
         idempotencyKey: `draft-${Date.now()}`,
       };

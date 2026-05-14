@@ -24,6 +24,20 @@ export type PublishPolicyConfig = {
   allowedRequesters: string[];
 };
 
+export type PublishManifestSummary = Pick<
+  PublicPolicyManifest,
+  | "title"
+  | "description"
+  | "createdAt"
+  | "ownerAddress"
+  | "legalText"
+  | "usageTaxonomy"
+  | "taskConstraints"
+  | "complianceNotes"
+  | "attribution"
+  | "derivativeRights"
+>;
+
 export type PublishSubmitRequest = {
   datasetRoot: string;
   manifestHash: string;
@@ -33,6 +47,7 @@ export type PublishSubmitRequest = {
   ownerSignature?: string;
   /** ECIES-encrypted AES key envelope — REQUIRED for orchestrator retrieval */
   encryptedKeyEnvelope: string;
+  manifestSummary?: PublishManifestSummary;
   policy: PublishPolicyConfig;
   idempotencyKey?: string;
 };
@@ -273,6 +288,29 @@ export function validatePublishSubmitRequest(input: unknown): ValidationResult<P
 
       if (policy.openRequesters === false && policy.allowedRequesters.length === 0) {
         errors.push("policy.allowedRequesters must contain at least one wallet when openRequesters is false");
+      }
+    }
+  }
+
+  if (input.manifestSummary !== undefined) {
+    if (!isRecord(input.manifestSummary)) {
+      errors.push("manifestSummary must be an object when provided");
+    } else {
+      if (!isNonEmptyString(input.manifestSummary.title)) errors.push("manifestSummary.title is required");
+      if (!isNonEmptyString(input.manifestSummary.description)) errors.push("manifestSummary.description is required");
+      if (!isIsoDateString(input.manifestSummary.createdAt)) errors.push("manifestSummary.createdAt must be a valid ISO datetime string");
+      if (!isHexString(input.manifestSummary.ownerAddress)) errors.push("manifestSummary.ownerAddress must be a hex string");
+
+      const optionalSummaryFields: Array<keyof Pick<
+        PublishManifestSummary,
+        "legalText" | "usageTaxonomy" | "taskConstraints" | "complianceNotes" | "attribution" | "derivativeRights"
+      >> = ["legalText", "usageTaxonomy", "taskConstraints", "complianceNotes", "attribution", "derivativeRights"];
+
+      for (const field of optionalSummaryFields) {
+        const value = input.manifestSummary[field];
+        if (value !== undefined && !isNonEmptyString(value)) {
+          errors.push(`manifestSummary.${field} must be a non-empty string when provided`);
+        }
       }
     }
   }

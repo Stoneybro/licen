@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
             return [datasetRoot, { title: null, description: null, createdAt: null, manifestUri: null } satisfies SummaryRecord] as const;
           }
 
-          const manifest = await downloadManifestFromOgStorage(payload.manifestUri);
+          const manifest = payload.manifestSummary ?? await downloadManifestFromOgStorage(payload.manifestUri);
           return [
             datasetRoot,
             {
