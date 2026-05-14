@@ -56,7 +56,7 @@ startJobTracker();
 // Minimal health-check HTTP server — required by Fly.io to confirm the process is alive.
 // The orchestrator is a background worker with no real HTTP surface, so this is intentionally bare.
 import { createServer } from "node:http";
-const PORT = process.env.PORT ?? "8080";
+const PORT = process.env.PORT ?? "7860";
 createServer((_, res) => {
   res.writeHead(200, { "Content-Type": "text/plain" });
   res.end("ok");

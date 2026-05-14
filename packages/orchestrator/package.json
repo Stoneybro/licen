@@ -15,6 +15,7 @@
   },
   "dependencies": {
     "@0gfoundation/0g-compute-ts-sdk": "^0.8.0",
+    "@0gfoundation/0g-ts-sdk": "^1.2.6",
     "@noble/curves": "^2.2.0",
     "@noble/hashes": "^2.2.0",
     "drizzle-orm": "^0.45.2",
