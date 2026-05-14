@@ -54,9 +54,11 @@ function getOgChain() {
 }
 function getClients() {
     const rpcUrl = process.env.OG_EVM_RPC_URL ?? "https://evmrpc-testnet.0g.ai";
-    const backendKey = process.env.BACKEND_WALLET_PRIVATE_KEY;
-    if (!backendKey)
+    const rawKey = process.env.BACKEND_WALLET_PRIVATE_KEY;
+    if (!rawKey)
         throw new Error("Missing env: BACKEND_WALLET_PRIVATE_KEY");
+    // viem requires 0x-prefixed hex — normalise regardless of what's in .env
+    const backendKey = (rawKey.startsWith("0x") ? rawKey : `0x${rawKey}`);
     const chain = getOgChain();
     const account = privateKeyToAccount(backendKey);
     const publicClient = createPublicClient({ chain, transport: http(rpcUrl) });
@@ -176,23 +178,33 @@ export async function processGrantedJob(job) {
     }
     // ── Steps 3–5: Download encrypted dataset, decrypt, re-upload plaintext ───
     let plaintextRootHash;
-    try {
-        console.log(`[dispatcher] Downloading encrypted dataset: ${job.datasetCid}`);
-        const encryptedBytes = await downloadFromStorage(job.datasetCid, job.jobId);
-        console.log(`[dispatcher] Decrypting dataset (${encryptedBytes.length} bytes)`);
-        const plaintext = decryptDataset(encryptedBytes, unsealedKey.aesKey, unsealedKey.iv);
-        console.log(`[dispatcher] Re-uploading plaintext dataset to 0G Storage`);
-        plaintextRootHash = await uploadPlaintextToStorage(plaintext, job.jobId);
+    if (process.env.LICEN_DEMO_MODE === "true") {
+        // In demo mode, skip real 0G Storage operations entirely.
+        // The compute step is also mocked (createFineTuningTask returns a fake taskId),
+        // so we just need a placeholder hash for the log trail.
+        plaintextRootHash = `0x${job.datasetCid.replace(/^0x/, "").padEnd(64, "0").slice(0, 64)}`;
+        console.log(`[dispatcher] DEMO MODE — skipping 0G Storage download/decrypt/re-upload.`);
+        console.log(`[dispatcher] DEMO MODE — using placeholder plaintextRootHash: ${plaintextRootHash}`);
     }
-    catch (err) {
-        console.error(`[dispatcher] Dataset decrypt/re-upload failed for job ${job.jobId}:`, err);
-        unsealedKey.zero();
-        await markFailed(walletClient, account, contractAddress, job.jobId, "DATASET_DECRYPT_FAILED");
-        return;
-    }
-    finally {
-        // ── Step 9: Zero the AES key from memory regardless of outcome ──────────
-        unsealedKey.zero();
+    else {
+        try {
+            console.log(`[dispatcher] Downloading encrypted dataset: ${job.datasetCid}`);
+            const encryptedBytes = await downloadFromStorage(job.datasetCid, job.jobId);
+            console.log(`[dispatcher] Decrypting dataset (${encryptedBytes.length} bytes)`);
+            const plaintext = decryptDataset(encryptedBytes, unsealedKey.aesKey, unsealedKey.iv);
+            console.log(`[dispatcher] Re-uploading plaintext dataset to 0G Storage`);
+            plaintextRootHash = await uploadPlaintextToStorage(plaintext, job.jobId);
+        }
+        catch (err) {
+            console.error(`[dispatcher] Dataset decrypt/re-upload failed for job ${job.jobId}:`, err);
+            unsealedKey.zero();
+            await markFailed(walletClient, account, contractAddress, job.jobId, "DATASET_DECRYPT_FAILED");
+            return;
+        }
+        finally {
+            // ── Step 9: Zero the AES key from memory regardless of outcome ──────────
+            unsealedKey.zero();
+        }
     }
     // ── Step 6: Dispatch to 0G Compute with the plaintext root hash ───────────
     let taskId;

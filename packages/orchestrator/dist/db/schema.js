@@ -20,6 +20,8 @@ export const computeJobs = pgTable("compute_jobs", {
     attestationRef: text("attestation_ref"),
     /** pending | dispatching | running | acknowledging | completed | failed */
     status: text("status").notNull().default("pending"),
+    /** DEMO MODE: timestamp when the mock job was dispatched, for epoch simulation */
+    mockDispatchedAt: timestamp("mock_dispatched_at"),
     createdAt: timestamp("created_at").defaultNow().notNull(),
     updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

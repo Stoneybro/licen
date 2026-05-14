@@ -443,14 +443,10 @@ export default function NewDatasetPage() {
         }),
       });
 
-      const txHash = (await ethereumProvider.request({
-        method: "eth_sendTransaction",
-        params: [{ from: normalizedOwnerAddress, to: getDataPolicyAddress(), data: calldata }],
-      })) as Hex;
-
-      submitPayload.txHash = txHash;
+      // 1. Submit payload to backend first to prevent orphaned on-chain datasets if backend fails
+      submitPayload.txHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
       setPublishProgress(75);
-      setPublishingStep("Finalizing submission...");
+      setPublishingStep("Saving manifest to backend...");
 
       const submitRes = await fetch("/api/publish/submit", {
         method: "POST",
@@ -460,10 +456,33 @@ export default function NewDatasetPage() {
 
       if (!submitRes.ok) throw new Error("Failed to submit publish request");
       const submitData = (await submitRes.json()) as PublishSubmitSuccessResponse;
-
       setRequestId(submitData.requestId);
+
+      // 2. Broadcast on-chain
+      setPublishingStep("Broadcasting on-chain registration...");
+      
+      let txHash: Hex = "0x";
+      try {
+        txHash = (await ethereumProvider.request({
+          method: "eth_sendTransaction",
+          params: [{ from: normalizedOwnerAddress, to: getDataPolicyAddress(), data: calldata }],
+        })) as Hex;
+        
+        // Optionally update txHash on backend here if we had an endpoint, 
+        // but it's not strictly necessary as indexer will pick up the true hash.
+      } catch (err: unknown) {
+        const errorObj = err as Record<string, unknown>;
+        const msg = typeof errorObj?.message === "string" ? errorObj.message : String(err);
+        // Privy/Viem may timeout waiting for the receipt on slow networks
+        if (msg.includes("could not be found") || msg.includes("timeout") || msg.includes("Transaction receipt")) {
+          console.warn("Transaction sent but receipt timed out. It will likely be mined soon.", err);
+        } else {
+          throw err;
+        }
+      }
+
       setStatus(submitData.status);
-      setPublishProgress(85);
+      setPublishProgress(100);
 
     } catch (err: unknown) {
       console.error(err);
