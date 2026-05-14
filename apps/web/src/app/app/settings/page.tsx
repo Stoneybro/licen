@@ -7,20 +7,8 @@ import { Separator } from "@/components/ui/separator";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { usePrivy } from "@privy-io/react-auth";
-import { createPublicClient, http, formatUnits } from "viem";
+import { createPublicClient, http, formatEther } from "viem";
 import { getOgChain } from "@/lib/publish/onchain";
-
-const ERC20_ABI = [
-  {
-    type: "function",
-    name: "balanceOf",
-    stateMutability: "view",
-    inputs: [{ name: "account", type: "address" }],
-    outputs: [{ type: "uint256" }],
-  }
-] as const;
-
-const TOKEN_ADDRESS = "0x6A0C73162c20Bc56212D643112c339f654C45198";
 
 export default function SettingsPage() {
   const { user } = usePrivy();
@@ -34,13 +22,10 @@ export default function SettingsPage() {
       chain: getOgChain(rpcUrl),
       transport: http(rpcUrl)
     });
-    client.readContract({
-      address: TOKEN_ADDRESS,
-      abi: ERC20_ABI,
-      functionName: "balanceOf",
-      args: [walletAddress as `0x${string}`],
+    client.getBalance({
+      address: walletAddress as `0x${string}`,
     }).then(b => {
-      setBalance(Number(formatUnits(b as bigint, 6)).toFixed(2));
+      setBalance(Number(formatEther(b)).toFixed(4));
     }).catch(console.error);
   }, [walletAddress]);
 
@@ -65,8 +50,8 @@ export default function SettingsPage() {
             </div>
             <Separator />
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">USDC balance</span>
-              <span className="font-mono font-medium">{balance} USDC</span>
+              <span className="text-muted-foreground">0G balance</span>
+              <span className="font-mono font-medium">{balance} 0G</span>
             </div>
           </CardContent>
         </Card>
@@ -99,20 +84,16 @@ export default function SettingsPage() {
         {/* Token */}
         <Card>
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium">Royalty Token</CardTitle>
+            <CardTitle className="text-sm font-medium">Settlement Asset</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-2 text-xs">
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Token</span>
-              <Badge variant="outline" className="font-mono text-xs">USDC</Badge>
+              <span className="text-muted-foreground">Asset</span>
+              <Badge variant="outline" className="font-mono text-xs">0G</Badge>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Standard</span>
-              <span className="font-mono">ERC-20</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-muted-foreground">Contract</span>
-              <HashChip hash={TOKEN_ADDRESS} front={8} back={6} />
+              <span className="text-muted-foreground">Transfer mode</span>
+              <span className="font-mono">Native value</span>
             </div>
           </CardContent>
         </Card>

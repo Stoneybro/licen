@@ -3,61 +3,47 @@ pragma solidity ^0.8.20;
 
 import {Test} from "forge-std/Test.sol";
 import {DataPolicy} from "../src/DataPolicy.sol";
-import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {ERC20} from "openzeppelin-contracts/contracts/token/ERC20/ERC20.sol";
-
-// Mock ERC20 for lUSD
-contract MockLUSD is ERC20 {
-    constructor() ERC20("LICEN USD", "lUSD") {}
-
-    function mint(address to, uint256 amount) external {
-        _mint(to, amount);
-    }
-}
 
 contract DataPolicyTest is Test {
     DataPolicy public policy;
-    MockLUSD public lusd;
 
     address public owner = address(1);
     address public requester = address(2);
     address public provider = address(3);
-    
+    address public otherRequester = address(4);
+
     bytes32 public datasetRoot = keccak256("dataset_root");
     bytes32 public datasetRootOpen = keccak256("dataset_root_open");
     bytes32 public manifestHash = keccak256("manifest_hash");
     bytes32 public purposeId = keccak256("NEURAL_RESEARCH");
     bytes32 public disallowedPurposeId = keccak256("COMMERCIAL_R_AND_D");
-    address public otherRequester = address(4);
 
     function setUp() public {
-        lusd = new MockLUSD();
-        policy = new DataPolicy(address(lusd), provider);
+        policy = new DataPolicy(provider);
 
-        // Fund requester
-        lusd.mint(requester, 1000000 * 10**18);
-        lusd.mint(otherRequester, 1000000 * 10**18);
+        vm.deal(requester, 1_000_000 ether);
+        vm.deal(otherRequester, 1_000_000 ether);
     }
 
     function test_RegisterDataset() public {
         vm.startPrank(owner);
-        
+
         bytes32[] memory purposes = new bytes32[](1);
         purposes[0] = purposeId;
-        
+
         address[] memory requesters = new address[](1);
         requesters[0] = requester;
 
         policy.registerDataset(
             datasetRoot,
             manifestHash,
-            10 * 10**18, // royaltyPerEpoch: 10 lUSD
-            10,          // maxEpochsPerRun
-            5,           // maxRunsPerRequester
-            3600,        // accessTtlSeconds
-            0,           // policyExpiry
-            true,        // requireResultAttestation
-            false,       // openRequesters
+            10 ether,
+            10,
+            5,
+            3600,
+            0,
+            true,
+            false,
             purposes,
             requesters
         );
@@ -80,24 +66,30 @@ contract DataPolicyTest is Test {
         assertEq(_datasetRoot, datasetRoot);
         assertEq(_owner, owner);
         assertEq(_manifestHash, manifestHash);
-        assertEq(royaltyPerEpoch, 10 * 10**18);
+        assertEq(royaltyPerEpoch, 10 ether);
+        assertEq(maxEpochsPerRun, 10);
+        assertEq(maxRunsPerRequester, 5);
+        assertEq(accessTtlSeconds, 3600);
+        assertEq(policyExpiry, 0);
+        assertTrue(requireResultAttestation);
         assertTrue(active);
+        assertFalse(openRequesters);
     }
 
     function _registerDefaultDataset() internal {
         vm.startPrank(owner);
-        
+
         bytes32[] memory purposes = new bytes32[](1);
         purposes[0] = purposeId;
-        
+
         address[] memory requesters = new address[](1);
         requesters[0] = requester;
 
         policy.registerDataset(
             datasetRoot,
             manifestHash,
-            10 * 10**18, // 10 lUSD/epoch
-            10,          // max 10 epochs
+            10 ether,
+            10,
             5,
             3600,
             0,
@@ -112,17 +104,8 @@ contract DataPolicyTest is Test {
     function test_RequestAccess() public {
         _registerDefaultDataset();
 
-        vm.startPrank(requester);
-        lusd.approve(address(policy), type(uint256).max);
-
-        // Request 5 epochs (50 lUSD expected)
-        bytes32 jobId = policy.requestAccess(
-            datasetRoot,
-            purposeId,
-            5,
-            manifestHash
-        );
-        vm.stopPrank();
+        vm.prank(requester);
+        bytes32 jobId = policy.requestAccess{value: 50 ether}(datasetRoot, purposeId, 5, manifestHash);
 
         (
             bytes32 jobDatasetRoot,
@@ -138,47 +121,43 @@ contract DataPolicyTest is Test {
 
         assertEq(jobDatasetRoot, datasetRoot);
         assertEq(jobRequester, requester);
-        assertEq(escrowAmount, 50 * 10**18); // 5 * 10
+        assertEq(jobProvider, provider);
+        assertEq(jobPurposeId, purposeId);
+        assertEq(requestedEpochs, 5);
+        assertEq(escrowAmount, 50 ether);
         assertEq(uint(state), uint(DataPolicy.JobState.Granted));
-        assertEq(lusd.balanceOf(address(policy)), 50 * 10**18); // Escrow locked
+        assertEq(termsHash, manifestHash);
+        assertEq(address(policy).balance, 50 ether);
     }
-    
+
+    function test_RequestAccess_RevertsWhenEscrowAmountIsWrong() public {
+        _registerDefaultDataset();
+
+        vm.prank(requester);
+        vm.expectRevert("Incorrect escrow amount");
+        policy.requestAccess{value: 49 ether}(datasetRoot, purposeId, 5, manifestHash);
+    }
+
     function test_ConfirmTrainingComplete() public {
         _registerDefaultDataset();
 
-        vm.startPrank(requester);
-        lusd.approve(address(policy), type(uint256).max);
-        bytes32 jobId = policy.requestAccess(
-            datasetRoot,
-            purposeId,
-            6, // 60 lUSD locked
-            manifestHash
-        );
-        vm.stopPrank();
-        
-        uint256 ownerInitialBalance = lusd.balanceOf(owner);
-        uint256 requesterInitialBalance = lusd.balanceOf(requester);
+        vm.prank(requester);
+        bytes32 jobId = policy.requestAccess{value: 60 ether}(datasetRoot, purposeId, 6, manifestHash);
+
+        uint256 ownerInitialBalance = owner.balance;
+        uint256 requesterInitialBalance = requester.balance;
 
         vm.startPrank(provider);
         policy.startJob(jobId);
-        
-        // Let's say only 5 epochs actually ran (50 lUSD actual cost)
-        policy.confirmTrainingComplete(
-            jobId,
-            5,
-            keccak256("result"),
-            keccak256("attestation")
-        );
+        policy.confirmTrainingComplete(jobId, 5, keccak256("result"), keccak256("attestation"));
         vm.stopPrank();
 
-        (, , , , , , , DataPolicy.JobState state, ) = policy.jobs(jobId);
+        (, , , , , uint256 remainingEscrow, , DataPolicy.JobState state, ) = policy.jobs(jobId);
         assertEq(uint(state), uint(DataPolicy.JobState.Completed));
-        
-        // Owner should get 50 lUSD
-        assertEq(lusd.balanceOf(owner) - ownerInitialBalance, 50 * 10**18);
-        
-        // Requester should get 10 lUSD refund (60 locked - 50 settled)
-        assertEq(lusd.balanceOf(requester) - requesterInitialBalance, 10 * 10**18);
+        assertEq(remainingEscrow, 0);
+        assertEq(owner.balance - ownerInitialBalance, 50 ether);
+        assertEq(requester.balance - requesterInitialBalance, 10 ether);
+        assertEq(address(policy).balance, 0);
     }
 
     function test_RequestAccess_RevertsWhenExceedingMaxRunsPerRequester() public {
@@ -193,7 +172,7 @@ contract DataPolicyTest is Test {
         policy.registerDataset(
             datasetRoot,
             manifestHash,
-            10 * 10**18,
+            10 ether,
             10,
             1,
             3600,
@@ -205,22 +184,20 @@ contract DataPolicyTest is Test {
         );
         vm.stopPrank();
 
-        vm.startPrank(requester);
-        lusd.approve(address(policy), type(uint256).max);
-        policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
+        vm.prank(requester);
+        policy.requestAccess{value: 10 ether}(datasetRoot, purposeId, 1, manifestHash);
+
+        vm.prank(requester);
         vm.expectRevert("Requester run limit reached");
-        policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
-        vm.stopPrank();
+        policy.requestAccess{value: 10 ether}(datasetRoot, purposeId, 1, manifestHash);
     }
 
     function test_RequestAccess_RevertsWhenRequesterNotAllowed() public {
         _registerDefaultDataset();
 
-        vm.startPrank(otherRequester);
-        lusd.approve(address(policy), type(uint256).max);
+        vm.prank(otherRequester);
         vm.expectRevert("Requester not allowed");
-        policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
-        vm.stopPrank();
+        policy.requestAccess{value: 10 ether}(datasetRoot, purposeId, 1, manifestHash);
     }
 
     function test_RequestAccess_AllowsOpenRequesterPolicy() public {
@@ -232,7 +209,7 @@ contract DataPolicyTest is Test {
         policy.registerDataset(
             datasetRootOpen,
             manifestHash,
-            10 * 10**18,
+            10 ether,
             10,
             2,
             3600,
@@ -244,10 +221,8 @@ contract DataPolicyTest is Test {
         );
         vm.stopPrank();
 
-        vm.startPrank(otherRequester);
-        lusd.approve(address(policy), type(uint256).max);
-        bytes32 jobId = policy.requestAccess(datasetRootOpen, purposeId, 1, manifestHash);
-        vm.stopPrank();
+        vm.prank(otherRequester);
+        bytes32 jobId = policy.requestAccess{value: 10 ether}(datasetRootOpen, purposeId, 1, manifestHash);
 
         (, address jobRequester, , , , , , DataPolicy.JobState state, ) = policy.jobs(jobId);
         assertEq(jobRequester, otherRequester);
@@ -257,21 +232,17 @@ contract DataPolicyTest is Test {
     function test_RequestAccess_RevertsWhenPurposeNotAllowed() public {
         _registerDefaultDataset();
 
-        vm.startPrank(requester);
-        lusd.approve(address(policy), type(uint256).max);
+        vm.prank(requester);
         vm.expectRevert("Purpose not allowed");
-        policy.requestAccess(datasetRoot, disallowedPurposeId, 1, manifestHash);
-        vm.stopPrank();
+        policy.requestAccess{value: 10 ether}(datasetRoot, disallowedPurposeId, 1, manifestHash);
     }
 
     function test_RequestAccess_RevertsWhenExceedingMaxEpochsPerRun() public {
         _registerDefaultDataset();
 
-        vm.startPrank(requester);
-        lusd.approve(address(policy), type(uint256).max);
+        vm.prank(requester);
         vm.expectRevert("Exceeds max epochs per run");
-        policy.requestAccess(datasetRoot, purposeId, 11, manifestHash);
-        vm.stopPrank();
+        policy.requestAccess{value: 110 ether}(datasetRoot, purposeId, 11, manifestHash);
     }
 
     function test_RequestAccess_RevertsWhenPolicyExpired() public {
@@ -286,7 +257,7 @@ contract DataPolicyTest is Test {
         policy.registerDataset(
             datasetRoot,
             manifestHash,
-            10 * 10**18,
+            10 ether,
             10,
             1,
             3600,
@@ -300,20 +271,16 @@ contract DataPolicyTest is Test {
 
         vm.warp(block.timestamp + 2);
 
-        vm.startPrank(requester);
-        lusd.approve(address(policy), type(uint256).max);
+        vm.prank(requester);
         vm.expectRevert("Policy expired");
-        policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
-        vm.stopPrank();
+        policy.requestAccess{value: 10 ether}(datasetRoot, purposeId, 1, manifestHash);
     }
 
     function test_ConfirmTrainingComplete_RevertsWhenAttestationRequiredButMissing() public {
         _registerDefaultDataset();
 
-        vm.startPrank(requester);
-        lusd.approve(address(policy), type(uint256).max);
-        bytes32 jobId = policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
-        vm.stopPrank();
+        vm.prank(requester);
+        bytes32 jobId = policy.requestAccess{value: 10 ether}(datasetRoot, purposeId, 1, manifestHash);
 
         vm.startPrank(provider);
         policy.startJob(jobId);
@@ -325,15 +292,34 @@ contract DataPolicyTest is Test {
     function test_ConfirmTrainingComplete_RevertsWhenActualEpochsExceedRequested() public {
         _registerDefaultDataset();
 
-        vm.startPrank(requester);
-        lusd.approve(address(policy), type(uint256).max);
-        bytes32 jobId = policy.requestAccess(datasetRoot, purposeId, 1, manifestHash);
-        vm.stopPrank();
+        vm.prank(requester);
+        bytes32 jobId = policy.requestAccess{value: 10 ether}(datasetRoot, purposeId, 1, manifestHash);
 
         vm.startPrank(provider);
         policy.startJob(jobId);
         vm.expectRevert("Actual epochs exceed requested");
         policy.confirmTrainingComplete(jobId, 2, keccak256("result"), keccak256("attestation"));
         vm.stopPrank();
+    }
+
+    function test_RefundAfterFailure() public {
+        _registerDefaultDataset();
+
+        vm.prank(requester);
+        bytes32 jobId = policy.requestAccess{value: 20 ether}(datasetRoot, purposeId, 2, manifestHash);
+
+        uint256 requesterInitialBalance = requester.balance;
+
+        vm.prank(provider);
+        policy.markJobFailed(jobId, "compute_error");
+
+        vm.prank(requester);
+        policy.refund(jobId);
+
+        (, , , , , uint256 remainingEscrow, , DataPolicy.JobState state, ) = policy.jobs(jobId);
+        assertEq(uint(state), uint(DataPolicy.JobState.Refunded));
+        assertEq(remainingEscrow, 0);
+        assertEq(requester.balance - requesterInitialBalance, 20 ether);
+        assertEq(address(policy).balance, 0);
     }
 }

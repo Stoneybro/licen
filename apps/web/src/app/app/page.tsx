@@ -34,7 +34,7 @@ export default function PublisherDashboard() {
           active: d.active,
           label: d.title,
           royaltyPerEpoch: d.policy?.royaltyPerEpoch ?? 0,
-          lifetimeRoyalties: `${Number(d.stats?.lifetimeRoyalties ?? 0) / 1_000_000}`,
+          lifetimeRoyalties: `${Number(d.stats?.lifetimeRoyalties ?? 0) / 1_000_000_000_000_000_000}`,
           jobCount: d.stats?.jobCount ?? 0,
           activeJobCount: d.stats?.activeJobCount ?? 0,
         }));
@@ -118,7 +118,7 @@ export default function PublisherDashboard() {
               <CardTitle className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Total Earnings</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-1">
-              <p className="text-xl font-semibold tabular-nums">{totalRoyalties.toLocaleString()} USDC</p>
+              <p className="text-xl font-semibold tabular-nums">{totalRoyalties.toLocaleString()} 0G</p>
               <p className="text-xs text-muted-foreground">paid directly to your wallet</p>
               <p className="text-[11px] text-muted-foreground/60 leading-relaxed border-t border-border pt-1.5 mt-0.5">
                 Total royalties you've earned from completed AI training sessions
@@ -212,8 +212,8 @@ export default function PublisherDashboard() {
                             {d.active ? "Active" : "Paused"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="font-mono text-xs">{d.royaltyPerEpoch} USDC/epoch</TableCell>
-                        <TableCell className="text-right font-mono text-xs">{d.lifetimeRoyalties} USDC</TableCell>
+                        <TableCell className="font-mono text-xs">{d.royaltyPerEpoch} 0G/epoch</TableCell>
+                        <TableCell className="text-right font-mono text-xs">{d.lifetimeRoyalties} 0G</TableCell>
                         <TableCell className="text-right pr-6">
                           <div className="flex items-center justify-end gap-2">
                             <span className="font-mono text-xs">{d.jobCount}</span>

@@ -121,7 +121,7 @@ export default function MarketplacePage() {
                     <div className="grid grid-cols-3 gap-2 text-[11px] bg-muted/10 p-2.5 rounded-md border border-border/20">
                       <div>
                         <p className="text-muted-foreground uppercase tracking-wider font-bold text-[9px]">Rate</p>
-                        <p className="font-mono font-bold text-foreground">{d.royaltyPerEpoch} USDC</p>
+                        <p className="font-mono font-bold text-foreground">{d.royaltyPerEpoch} 0G</p>
                       </div>
                       <div>
                         <p className="text-muted-foreground uppercase tracking-wider font-bold text-[9px]">Max epochs</p>

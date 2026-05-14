@@ -14,7 +14,7 @@ import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
-import { formatUnits } from "viem";
+import { formatEther } from "viem";
 import { cn } from "@/lib/utils";
 
 const STATE_ORDER = ["Requested", "Granted", "Running", "Completed"];
@@ -133,7 +133,7 @@ export default function JobDetailPage() {
         policyDetails = policy;
         const royaltyPerEpoch = policy[3] || BigInt(0);
         const total = royaltyPerEpoch * BigInt(jobData.requestedEpochs);
-        escrow = formatUnits(total, 6);
+        escrow = formatEther(total);
       } catch (err) {
         console.error(`Failed to read policy for dataset ${jobData.datasetRoot}:`, err);
       }
@@ -150,7 +150,7 @@ export default function JobDetailPage() {
         events: json.data.AuditLog || [],
         policySnapshot: policyDetails ? {
           manifestHash: policyDetails[2],
-          royaltyPerEpoch: formatUnits(policyDetails[3], 6),
+          royaltyPerEpoch: formatEther(policyDetails[3]),
           accessTtlSeconds: Number(policyDetails[6]),
           policyExpiry: new Date(Number(policyDetails[7]) * 1000).toISOString()
         } : null,
@@ -393,12 +393,12 @@ export default function JobDetailPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-4">
-                  <LedgerRow label="Initial Escrow" value={`${job.escrow} USDC`} isBold />
+                  <LedgerRow label="Initial Escrow" value={`${job.escrow} 0G`} isBold />
                   {job.royaltySettled && (
-                    <LedgerRow label="Publisher Payout" value={`${formatUnits(BigInt(job.royaltySettled), 6)} USDC`} color="text-foreground" />
+                    <LedgerRow label="Publisher Payout" value={`${formatEther(BigInt(job.royaltySettled))} 0G`} color="text-foreground" />
                   )}
                   {job.refundIssued && (
-                    <LedgerRow label="Researcher Refund" value={`${formatUnits(BigInt(job.refundIssued), 6)} USDC`} color="text-foreground" />
+                    <LedgerRow label="Researcher Refund" value={`${formatEther(BigInt(job.refundIssued))} 0G`} color="text-foreground" />
                   )}
                 </div>
                 
@@ -407,7 +407,7 @@ export default function JobDetailPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Final Cost</span>
                   <p className="text-xl font-bold tracking-tight tabular-nums">
-                    {job.royaltySettled ? `${formatUnits(BigInt(job.royaltySettled), 6)} USDC` : "Pending"}
+                    {job.royaltySettled ? `${formatEther(BigInt(job.royaltySettled))} 0G` : "Pending"}
                   </p>
                 </div>
               </CardContent>

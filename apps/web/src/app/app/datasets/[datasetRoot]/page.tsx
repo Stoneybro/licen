@@ -14,7 +14,7 @@ import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
 import { PURPOSES } from "@/lib/mock";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
-import { formatUnits } from "viem";
+import { formatEther } from "viem";
 
 function getPurposeLabel(id: string): string {
   const found = PURPOSES.find((p) => p.id === id);
@@ -114,14 +114,14 @@ export default function DatasetDetailPage() {
           complianceNotes: manifest?.complianceNotes || "",
           attribution: manifest?.attribution || "",
           derivativeRights: manifest?.derivativeRights || "",
-          royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
+          royaltyPerEpoch: formatEther(policy[3] || BigInt(0)),
           maxEpochsPerRun: Number(policy[4] || 0),
           maxRunsPerRequester: Number(policy[5] || 0),
           openRequesters: policy[10] || false,
           requireResultAttestation: policy[8] || false,
           allowedPurposeIds: ["0x4e5609cbe0fd5356bb6b2036533ec04d260155597359f601778166b6c3049ed8"],
           policyExpiry: policy[7] ? new Date(Number(policy[7]) * 1000).toISOString() : "2026-12-31T00:00:00Z",
-          lifetimeRoyalties: formatUnits(lifetimeRoyalties, 6),
+          lifetimeRoyalties: formatEther(lifetimeRoyalties),
           jobCount: jobList.length,
         });
 
@@ -130,7 +130,7 @@ export default function DatasetDetailPage() {
           state: j.state,
           requestedEpochs: j.requestedEpochs,
           actualEpochs: j.actualEpochs,
-          settledAmount: j.royaltySettled ? formatUnits(BigInt(j.royaltySettled), 6) : null,
+          settledAmount: j.royaltySettled ? formatEther(BigInt(j.royaltySettled)) : null,
           createdAt: new Date(Number(j.timestamp) * 1000).toISOString(),
         })));
 
@@ -251,7 +251,7 @@ export default function DatasetDetailPage() {
                     <div className="grid grid-cols-2 gap-6">
                       <div className="space-y-1">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Royalty Rate</p>
-                        <p className="font-mono text-sm font-bold">{dataset.royaltyPerEpoch} USDC <span className="text-[10px] font-normal text-muted-foreground">/ epoch</span></p>
+                        <p className="font-mono text-sm font-bold">{dataset.royaltyPerEpoch} 0G <span className="text-[10px] font-normal text-muted-foreground">/ epoch</span></p>
                       </div>
                       <div className="space-y-1">
                         <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Expiry Date</p>
@@ -353,7 +353,7 @@ export default function DatasetDetailPage() {
                             {j.actualEpochs ?? j.requestedEpochs}
                           </TableCell>
                           <TableCell className="text-right pr-6">
-                            <span className="text-xs font-mono font-bold">{j.settledAmount ?? "-"} USDC</span>
+                            <span className="text-xs font-mono font-bold">{j.settledAmount ?? "-"} 0G</span>
                           </TableCell>
                         </TableRow>
                       ))
@@ -372,7 +372,7 @@ export default function DatasetDetailPage() {
               </CardHeader>
               <CardContent className="space-y-6">
                 <div className="space-y-1.5">
-                  <p className="text-3xl font-bold tracking-tight tabular-nums">{dataset.lifetimeRoyalties} <span className="text-sm font-medium text-muted-foreground tracking-normal">USDC</span></p>
+                  <p className="text-3xl font-bold tracking-tight tabular-nums">{dataset.lifetimeRoyalties} <span className="text-sm font-medium text-muted-foreground tracking-normal">0G</span></p>
                   <p className="text-xs text-muted-foreground">Total royalties earned life-to-date</p>
                 </div>
                 

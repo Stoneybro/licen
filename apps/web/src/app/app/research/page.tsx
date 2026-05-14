@@ -10,7 +10,7 @@ import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
-import { formatUnits } from "viem";
+import { formatEther } from "viem";
 import { usePrivy } from "@privy-io/react-auth";
 import { cn } from "@/lib/utils";
 
@@ -85,7 +85,7 @@ export default function ResearcherDashboard() {
             });
             const royaltyPerEpoch = policy[3] || BigInt(0);
             const total = royaltyPerEpoch * BigInt(j.requestedEpochs);
-            escrow = formatUnits(total, 6);
+            escrow = formatEther(total);
           } catch (err) {
             console.error(`Failed to read policy for dataset ${j.datasetRoot}:`, err);
           }
@@ -98,7 +98,7 @@ export default function ResearcherDashboard() {
             purposeLabel: "NEURAL_RESEARCH",
             requestedEpochs: j.requestedEpochs,
             escrow,
-            settledAmount: j.royaltySettled ? formatUnits(BigInt(j.royaltySettled), 6) : null,
+            settledAmount: j.royaltySettled ? formatEther(BigInt(j.royaltySettled)) : null,
             state: j.state,
           };
         })
@@ -182,13 +182,13 @@ export default function ResearcherDashboard() {
             },
             {
               label: "Total Spent",
-              value: `${totalSpent.toLocaleString()} USDC`,
+              value: `${totalSpent.toLocaleString()} 0G`,
               sub: "paid to publishers",
               note: "Total settled royalty payments",
             },
             {
               label: "Escrow Locked",
-              value: `${escrowLocked.toLocaleString()} USDC`,
+              value: `${escrowLocked.toLocaleString()} 0G`,
               sub: "in policy contracts",
               note: "Upfront payments pending settlement",
             },
@@ -270,12 +270,12 @@ export default function ResearcherDashboard() {
                   <div className="mt-auto pt-3 border-t border-border/20 flex items-center justify-between">
                     <div className="space-y-0.5">
                       <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter">Current Escrow</p>
-                      <p className="font-mono text-xs font-bold text-foreground">{j.escrow} USDC</p>
+                      <p className="font-mono text-xs font-bold text-foreground">{j.escrow} 0G</p>
                     </div>
                     {j.settledAmount && (
                       <div className="text-right space-y-0.5">
                          <p className="text-[9px] font-bold text-muted-foreground uppercase tracking-tighter">Settled</p>
-                         <p className="font-mono text-xs font-bold text-foreground">{j.settledAmount} USDC</p>
+                         <p className="font-mono text-xs font-bold text-foreground">{j.settledAmount} 0G</p>
                       </div>
                     )}
                   </div>

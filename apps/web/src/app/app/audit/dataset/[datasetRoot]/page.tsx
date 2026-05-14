@@ -15,7 +15,7 @@ import { JobStateBadge } from "@/components/app/job-state-badge";
 import { PUBLISH_PURPOSES } from "@/lib/publish/contracts";
 import type { JobState } from "@/lib/mock";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
-import { formatUnits } from "viem";
+import { formatEther } from "viem";
 
 function getPurposeLabel(id: string) {
   const match = PUBLISH_PURPOSES.find((p) => p === id);
@@ -97,8 +97,8 @@ export default function AuditDatasetPage() {
             owner: d.owner,
             manifestHash: d.manifestHash,
             active: d.active,
-            royaltyPerEpoch: policy ? formatUnits(policy[3] || BigInt(0), 6) : "0",
-            lifetimeRoyalties: formatUnits(lifetimeRoyalties, 6),
+            royaltyPerEpoch: policy ? formatEther(policy[3] || BigInt(0)) : "0",
+            lifetimeRoyalties: formatEther(lifetimeRoyalties),
             jobCount: datasetJobs.length,
             allowedPurposeIds: ["0x4e5609cbe0fd5356bb6b2036533ec04d260155597359f601778166b6c3049ed8"],
           },
@@ -185,7 +185,7 @@ export default function AuditDatasetPage() {
                       <Separator className="opacity-40" />
                       <div className="flex items-center justify-between">
                          <span className="text-muted-foreground">Royalty Rate</span>
-                         <span className="font-mono font-bold text-foreground">{dataset.royaltyPerEpoch} USDC / epoch</span>
+                         <span className="font-mono font-bold text-foreground">{dataset.royaltyPerEpoch} 0G / epoch</span>
                       </div>
                    </div>
                    <div className="p-5 space-y-4 text-xs bg-muted/5">
@@ -237,7 +237,7 @@ export default function AuditDatasetPage() {
                         <div className="flex flex-col items-end gap-2 shrink-0">
                            <JobStateBadge state={j.state as JobState} />
                            {j.royaltySettled && (
-                              <span className="font-mono text-[10px] font-bold text-foreground">{formatUnits(BigInt(j.royaltySettled), 6)} USDC settled</span>
+                              <span className="font-mono text-[10px] font-bold text-foreground">{formatEther(BigInt(j.royaltySettled))} 0G settled</span>
                            )}
                         </div>
                       </Link>
@@ -297,7 +297,7 @@ export default function AuditDatasetPage() {
                 </CardHeader>
                 <CardContent className="space-y-6">
                    <div className="space-y-1.5">
-                      <p className="text-3xl font-bold tracking-tight tabular-nums">{dataset.lifetimeRoyalties} <span className="text-sm font-medium text-muted-foreground tracking-normal">USDC</span></p>
+                      <p className="text-3xl font-bold tracking-tight tabular-nums">{dataset.lifetimeRoyalties} <span className="text-sm font-medium text-muted-foreground tracking-normal">0G</span></p>
                       <p className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total royalties settled</p>
                    </div>
                    

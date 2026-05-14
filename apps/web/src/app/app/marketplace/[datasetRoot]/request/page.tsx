@@ -15,32 +15,24 @@ import { Progress } from "@/components/ui/progress";
 import { HashChip } from "@/components/app/hash-chip";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { PURPOSES } from "@/lib/mock";
-import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress, getOgChain, ERC20_ABI, USDC_TOKEN_ADDRESS } from "@/lib/publish/onchain";
-import { formatUnits, createPublicClient, http, encodeFunctionData, type Address, type Hex } from "viem";
+import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress, getOgChain } from "@/lib/publish/onchain";
+import { formatEther, createPublicClient, http, encodeFunctionData, keccak256, toHex, type Address, type Hex } from "viem";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { cn } from "@/lib/utils";
 
 const STEPS = ["Configure", "Review", "Confirm"];
 
-// MockUSDC exposes a public mint() — anyone can call it on testnet
-const MINT_ABI = [{
-  type: "function",
-  name: "mint",
-  stateMutability: "nonpayable",
-  inputs: [{ name: "to", type: "address" }, { name: "amount", type: "uint256" }],
-  outputs: [],
-}] as const;
-
-// How much test USDC to mint per tap (1000 USDC = 1_000_000_000 raw units with 6 decimals)
-const FAUCET_AMOUNT_RAW = BigInt(1_000 * 1_000_000);
-
 function getPurposeLabel(id: string): string {
-  // Try to match by ID or just return the ID
-  const found = PURPOSES.find((p) => p.id.toLowerCase() === id.toLowerCase());
-  if (found) return found.label;
-  
-  // Handle common purpose IDs if they are known hashes
-  return id.slice(0, 8);
+  if (id.startsWith("0x")) {
+    const found = PURPOSES.find((p) => p.id.toLowerCase() === id.toLowerCase());
+    if (found) return found.label;
+    return id.slice(0, 8);
+  }
+  return id
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
 }
 
 export default function RequestAccessPage() {
@@ -59,17 +51,13 @@ export default function RequestAccessPage() {
   const walletAddress = user?.wallet?.address;
   const [balanceStr, setBalanceStr] = React.useState<string>("0");
   const [hasBalance, setHasBalance] = React.useState<boolean>(true);
-  
-  const [allowance, setAllowance] = React.useState<bigint>(BigInt(0));
-  const [isCheckingAllowance, setIsCheckingAllowance] = React.useState(true);
+  const [isCheckingBalance, setIsCheckingBalance] = React.useState(true);
   
   const [submitting, setSubmitting] = React.useState(false);
   const [submissionStep, setSubmissionStep] = React.useState<string | null>(null);
   const [submissionProgress, setSubmissionProgress] = React.useState(0);
   const [submissionError, setSubmissionError] = React.useState<string | null>(null);
   const [success, setSuccess] = React.useState(false);
-  const [minting, setMinting] = React.useState(false);
-  const [mintError, setMintError] = React.useState<string | null>(null);
 
   const fetchDataset = React.useCallback(async () => {
     if (!datasetRoot) return;
@@ -120,11 +108,13 @@ export default function RequestAccessPage() {
         manifestHash: d.manifestHash,
         label: datasetSummary?.title || `Dataset ${d.id.slice(0, 10)}`,
         description: datasetSummary?.description || "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
-        royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
+        royaltyPerEpoch: formatEther(policy[3] || BigInt(0)),
         royaltyPerEpochRaw: policy[3] || BigInt(0),
         maxEpochsPerRun: Number(policy[4] || 0),
         requireResultAttestation: policy[8] || false,
-        allowedPurposeIds: ["0x4e5609cbe0fd5356bb6b2036533ec04d260155597359f601778166b6c3049ed8"],
+        allowedPurposeIds: datasetSummary?.policy?.allowedPurposeIds?.length 
+          ? datasetSummary.policy.allowedPurposeIds 
+          : ["NEURAL_RESEARCH"],
       };
 
       setDataset(hydrated);
@@ -139,34 +129,21 @@ export default function RequestAccessPage() {
   const fetchOnChainData = React.useCallback(async () => {
     if (!walletAddress) return;
     try {
-      setIsCheckingAllowance(true);
+      setIsCheckingBalance(true);
       const rpcUrl = process.env.NEXT_PUBLIC_OG_EVM_RPC_URL || "https://evmrpc-testnet.0g.ai";
       const client = createPublicClient({
         chain: getOgChain(rpcUrl),
         transport: http(rpcUrl)
       });
-      
-      const [b, allow] = await Promise.all([
-        client.readContract({
-          address: USDC_TOKEN_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: "balanceOf",
-          args: [walletAddress as `0x${string}`],
-        }),
-        client.readContract({
-          address: USDC_TOKEN_ADDRESS,
-          abi: ERC20_ABI,
-          functionName: "allowance",
-          args: [walletAddress as `0x${string}`, getDataPolicyAddress()],
-        })
-      ]);
+      const balance = await client.getBalance({
+        address: walletAddress as `0x${string}`,
+      });
 
-      setBalanceStr(Number(formatUnits(b as bigint, 6)).toFixed(2));
-      setAllowance(allow as bigint);
+      setBalanceStr(Number(formatEther(balance)).toFixed(4));
     } catch (e) {
       console.error(e);
     } finally {
-      setIsCheckingAllowance(false);
+      setIsCheckingBalance(false);
     }
   }, [walletAddress]);
 
@@ -192,37 +169,11 @@ export default function RequestAccessPage() {
 
   const epochsNum = parseInt(epochs, 10) || 0;
   const quoteRaw = BigInt(epochsNum) * (dataset?.royaltyPerEpochRaw || BigInt(0));
-  const quote = Number(formatUnits(quoteRaw, 6));
+  const quote = Number(formatEther(quoteRaw));
   
   React.useEffect(() => {
     setHasBalance(parseFloat(balanceStr) >= quote);
   }, [balanceStr, quote]);
-
-  const handleMintUsdc = async () => {
-    setMintError(null);
-    setMinting(true);
-    try {
-      const activeWallet = wallets.find((w) => w.address.toLowerCase() === walletAddress?.toLowerCase());
-      if (!activeWallet) throw new Error("Wallet not found");
-      const ethereumProvider = await activeWallet.getEthereumProvider();
-      const mintData = encodeFunctionData({
-        abi: MINT_ABI,
-        functionName: "mint",
-        args: [walletAddress as Address, FAUCET_AMOUNT_RAW],
-      });
-      await ethereumProvider.request({
-        method: "eth_sendTransaction",
-        params: [{ from: walletAddress as Address, to: USDC_TOKEN_ADDRESS, data: mintData }],
-      });
-      // Wait for tx to propagate then refresh balance
-      await new Promise(r => setTimeout(r, 3500));
-      await fetchOnChainData();
-    } catch (err: any) {
-      setMintError(err?.message || "Mint failed");
-    } finally {
-      setMinting(false);
-    }
-  };
 
   const handleRequestAccess = async () => {
     setSubmissionError(null);
@@ -237,38 +188,15 @@ export default function RequestAccessPage() {
       const ethereumProvider = await activeWallet.getEthereumProvider();
       const policyAddress = getDataPolicyAddress();
 
-      // 1. Check & handle allowance
-      if (allowance < quoteRaw) {
-        setSubmissionStep("Approving USDC...");
-        setSubmissionProgress(30);
-        
-        const approveData = encodeFunctionData({
-          abi: ERC20_ABI,
-          functionName: "approve",
-          args: [policyAddress, quoteRaw * BigInt(2)], // Approve 2x to be safe or just exact
-        });
-
-        const approveTxHash = await ethereumProvider.request({
-          method: "eth_sendTransaction",
-          params: [{ from: walletAddress as Address, to: USDC_TOKEN_ADDRESS, data: approveData }],
-        }) as string;
-        
-        setSubmissionStep("Waiting for approval confirmation...");
-        setSubmissionProgress(50);
-        await waitForTx(approveTxHash);
-        await fetchOnChainData();
-      }
-
-      // 2. Request Access
       setSubmissionStep("Locking escrow...");
-      setSubmissionProgress(70);
+      setSubmissionProgress(55);
 
       const requestData = encodeFunctionData({
         abi: DATA_POLICY_ABI,
         functionName: "requestAccess",
         args: [
           dataset.datasetRoot as Hex,
-          purposeId as Hex,
+          keccak256(toHex(purposeId)) as Hex,
           epochsNum,
           dataset.manifestHash as Hex,
         ],
@@ -276,7 +204,12 @@ export default function RequestAccessPage() {
 
       const txHash = await ethereumProvider.request({
         method: "eth_sendTransaction",
-        params: [{ from: walletAddress as Address, to: policyAddress, data: requestData }],
+        params: [{
+          from: walletAddress as Address,
+          to: policyAddress,
+          data: requestData,
+          value: `0x${quoteRaw.toString(16)}`,
+        }],
       }) as string;
 
       console.log("Transaction sent:", txHash);
@@ -315,8 +248,6 @@ export default function RequestAccessPage() {
   }
 
   if (!dataset) return null;
-  
-  const needsAllowance = allowance < quoteRaw;
 
   return (
     <div className="flex flex-col min-h-full">
@@ -419,7 +350,7 @@ export default function RequestAccessPage() {
               <div className="flex flex-col gap-2 text-xs">
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Royalty Rate</span>
-                  <span className="font-mono font-medium">{dataset.royaltyPerEpoch} USDC / epoch</span>
+                  <span className="font-mono font-medium">{dataset.royaltyPerEpoch} 0G / epoch</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Requested Epochs</span>
@@ -427,7 +358,7 @@ export default function RequestAccessPage() {
                 </div>
                 <div className="flex items-center justify-between pt-1">
                   <span className="font-semibold">Total escrow required</span>
-                  <span className="font-mono font-bold text-sm">{quote} USDC</span>
+                  <span className="font-mono font-bold text-sm">{quote} 0G</span>
                 </div>
               </div>
 
@@ -467,12 +398,12 @@ export default function RequestAccessPage() {
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground">Rate</span>
-                  <span className="font-mono">{dataset.royaltyPerEpoch} USDC/epoch</span>
+                  <span className="font-mono">{dataset.royaltyPerEpoch} 0G/epoch</span>
                 </div>
                 <Separator className="opacity-40" />
                 <div className="flex items-center justify-between pt-1">
                   <span className="font-semibold">Escrow to lock</span>
-                  <span className="font-mono font-bold text-sm">{quote} USDC</span>
+                  <span className="font-mono font-bold text-sm">{quote} 0G</span>
                 </div>
               </div>
 
@@ -493,37 +424,21 @@ export default function RequestAccessPage() {
 
               <div className="flex flex-col gap-2 px-1">
                 <div className="flex items-center justify-between">
-                  <span className="text-muted-foreground">Your USDC balance</span>
+                  <span className="text-muted-foreground">Your 0G balance</span>
                   <span className={cn(
                     "font-mono font-bold",
                     !hasBalance ? "text-destructive" : "text-foreground"
                   )}>
-                    {balanceStr} USDC
+                    {balanceStr} 0G
                   </span>
                 </div>
                 {!hasBalance && (
-                  <div className="flex flex-col gap-2">
-                    <Alert variant="destructive" className="py-2 bg-destructive/5 border-destructive/20">
-                      <AlertTriangleIcon className="size-3" />
-                      <AlertDescription className="text-[10px] font-medium">
-                        Insufficient USDC. You need {quote} but have {balanceStr}.
-                      </AlertDescription>
-                    </Alert>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full h-8 text-[11px] border-dashed border-amber-500/40 text-amber-500 hover:bg-amber-500/5 hover:text-amber-400"
-                      onClick={handleMintUsdc}
-                      disabled={minting}
-                    >
-                      {minting ? (
-                        <><Loader2 className="size-3 mr-1.5 animate-spin" />Minting test USDC...</>
-                      ) : (
-                        <>⚡ Get 1,000 Test USDC (Testnet Faucet)</>
-                      )}
-                    </Button>
-                    {mintError && <p className="text-[10px] text-destructive">{mintError}</p>}
-                  </div>
+                  <Alert variant="destructive" className="py-2 bg-destructive/5 border-destructive/20">
+                    <AlertTriangleIcon className="size-3" />
+                    <AlertDescription className="text-[10px] font-medium">
+                      Insufficient 0G. You need {quote} but have {balanceStr}. Fund the connected wallet before continuing.
+                    </AlertDescription>
+                  </Alert>
                 )}
               </div>
 
@@ -542,33 +457,15 @@ export default function RequestAccessPage() {
           <Card className="border-border/40 shadow-sm">
             <CardHeader className="pb-3">
               <CardTitle className="text-sm font-semibold tracking-tight">Final Confirmation</CardTitle>
-              <CardDescription className="text-xs">
-                {needsAllowance
-                  ? "Sign the transaction to approve USDC and lock escrow."
-                  : "Sign the transaction to lock escrow and submit your request."}
-              </CardDescription>
+              <CardDescription className="text-xs">Sign the transaction to lock native 0G in escrow and submit your request.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">
               <div className="space-y-2">
-                {needsAllowance && (
-                  <div className="flex items-center gap-3 rounded-lg border border-border/60 px-3 py-3 bg-muted/5">
-                    <div className="size-2 rounded-full bg-muted-foreground animate-pulse shrink-0" />
-                    <div className="flex flex-col gap-0.5">
-                      <span className="text-xs font-semibold">Step 1: Enable USDC</span>
-                      <span className="text-[10px] text-muted-foreground leading-tight">Approve the policy contract to manage your escrow.</span>
-                    </div>
-                    {isCheckingAllowance ? (
-                      <Loader2 className="ml-auto size-3 animate-spin text-muted-foreground" />
-                    ) : (
-                      <Badge variant="outline" className="ml-auto text-[10px] h-5 bg-background">pending</Badge>
-                    )}
-                  </div>
-                )}
                 <div className="flex items-center gap-3 rounded-lg border border-border/60 px-3 py-3 bg-muted/5">
                   <div className="size-2 rounded-full bg-muted-foreground shrink-0" />
                   <div className="flex flex-col gap-0.5">
-                    <span className="text-xs font-semibold">Step {needsAllowance ? "2" : "1"}: Request Access</span>
-                    <span className="text-[10px] text-muted-foreground leading-tight">Lock {quote} USDC in the policy escrow.</span>
+                    <span className="text-xs font-semibold">Step 1: Request Access</span>
+                    <span className="text-[10px] text-muted-foreground leading-tight">Lock {quote} 0G in the policy escrow.</span>
                   </div>
                   <Badge variant="outline" className="ml-auto text-[10px] h-5 bg-background">pending</Badge>
                 </div>
@@ -586,7 +483,7 @@ export default function RequestAccessPage() {
                 <Button 
                   className="h-11 text-xs flex-1 font-bold tracking-wide shadow-md" 
                   onClick={handleRequestAccess}
-                  disabled={submitting || isCheckingAllowance}
+                  disabled={submitting || isCheckingBalance || !hasBalance}
                 >
                   {submitting ? (
                     <>
@@ -598,7 +495,7 @@ export default function RequestAccessPage() {
                   )}
                 </Button>
               </div>
-              <p className="text-[10px] text-muted-foreground text-center mt-2 font-medium">Gas is abstracted — no ETH required.</p>
+              <p className="text-[10px] text-muted-foreground text-center mt-2 font-medium">This request sends native 0G as escrow from the connected wallet.</p>
             </CardContent>
           </Card>
         )}

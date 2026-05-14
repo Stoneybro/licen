@@ -1,13 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-import {IERC20} from "openzeppelin-contracts/contracts/token/ERC20/IERC20.sol";
-import {SafeERC20} from "openzeppelin-contracts/contracts/token/ERC20/utils/SafeERC20.sol";
+import {ReentrancyGuard} from "openzeppelin-contracts/contracts/utils/ReentrancyGuard.sol";
 
-contract DataPolicy {
-    using SafeERC20 for IERC20;
-
-    IERC20 public immutable paymentToken;
+contract DataPolicy is ReentrancyGuard {
     address public immutable backendWallet;
 
     struct Policy {
@@ -64,10 +60,8 @@ contract DataPolicy {
     event RoyaltySettled(bytes32 indexed jobId, uint256 amount);
     event RefundIssued(bytes32 indexed jobId, uint256 amount);
 
-    constructor(address _paymentToken, address _backendWallet) {
-        require(_paymentToken != address(0), "Invalid token address");
+    constructor(address _backendWallet) {
         require(_backendWallet != address(0), "Invalid backend wallet address");
-        paymentToken = IERC20(_paymentToken);
         backendWallet = _backendWallet;
     }
 
@@ -144,7 +138,7 @@ contract DataPolicy {
         bytes32 purposeId,
         uint32 requestedEpochs,
         bytes32 termsHash
-    ) external returns (bytes32 jobId) {
+    ) external payable nonReentrant returns (bytes32 jobId) {
         Policy memory policy = policies[datasetRoot];
         require(policy.active, "Policy is not active");
         require(block.timestamp < policy.policyExpiry || policy.policyExpiry == 0, "Policy expired");
@@ -158,6 +152,7 @@ contract DataPolicy {
         }
 
         uint256 requiredEscrow = policy.royaltyPerEpoch * requestedEpochs;
+        require(msg.value == requiredEscrow, "Incorrect escrow amount");
         requesterRunCounts[datasetRoot][msg.sender] += 1;
 
         jobCounter++;
@@ -174,9 +169,6 @@ contract DataPolicy {
             state: JobState.Granted,
             termsHash: termsHash
         });
-
-        // Lock escrow
-        paymentToken.safeTransferFrom(msg.sender, address(this), requiredEscrow);
 
         emit AccessRequested(jobId, datasetRoot, msg.sender, requestedEpochs);
         emit AccessGranted(jobId);
@@ -195,7 +187,7 @@ contract DataPolicy {
         uint32 actualEpochs,
         bytes32 resultHash,
         bytes32 attestationRef
-    ) external onlyBackend {
+    ) external onlyBackend nonReentrant {
         Job storage job = jobs[jobId];
         require(job.state == JobState.Running || job.state == JobState.Granted, "Invalid state transition");
         
@@ -214,14 +206,15 @@ contract DataPolicy {
         }
 
         uint256 refundAmount = job.escrowAmount - settleAmount;
+        job.escrowAmount = 0;
 
         if (settleAmount > 0) {
-            paymentToken.safeTransfer(policy.owner, settleAmount);
+            _sendValue(policy.owner, settleAmount);
             emit RoyaltySettled(jobId, settleAmount);
         }
 
         if (refundAmount > 0) {
-            paymentToken.safeTransfer(job.requester, refundAmount);
+            _sendValue(job.requester, refundAmount);
             emit RefundIssued(jobId, refundAmount);
         }
 
@@ -247,7 +240,7 @@ contract DataPolicy {
         emit JobTimedOut(jobId);
     }
 
-    function refund(bytes32 jobId) external {
+    function refund(bytes32 jobId) external nonReentrant {
         Job storage job = jobs[jobId];
         require(job.state == JobState.Failed || job.state == JobState.TimedOut, "Invalid state transition for refund");
         
@@ -257,7 +250,12 @@ contract DataPolicy {
         job.escrowAmount = 0; // Prevent double refund
         job.state = JobState.Refunded;
 
-        paymentToken.safeTransfer(job.requester, amount);
+        _sendValue(job.requester, amount);
         emit RefundIssued(jobId, amount);
+    }
+
+    function _sendValue(address recipient, uint256 amount) internal {
+        (bool success, ) = payable(recipient).call{value: amount}("");
+        require(success, "Native transfer failed");
     }
 }

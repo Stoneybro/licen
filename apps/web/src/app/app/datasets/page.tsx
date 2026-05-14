@@ -38,7 +38,7 @@ export default function DatasetsPage() {
           maxRunsPerRequester: d.policy?.maxRunsPerRequester ?? 0,
           openRequesters: d.policy?.openRequesters ?? false,
           requireResultAttestation: false,
-          lifetimeRoyalties: `${Number(d.stats?.lifetimeRoyalties ?? 0) / 1_000_000}`,
+          lifetimeRoyalties: `${Number(d.stats?.lifetimeRoyalties ?? 0) / 1_000_000_000_000_000_000}`,
           jobCount: d.stats?.jobCount ?? 0,
           activeJobCount: d.stats?.activeJobCount ?? 0,
           policyExpiry:
@@ -148,12 +148,12 @@ export default function DatasetsPage() {
                   <div className="grid grid-cols-3 gap-2 text-xs">
                     <div className="flex flex-col gap-0.5">
                       <span className="text-muted-foreground">Rate</span>
-                      <span className="font-mono font-medium">{d.royaltyPerEpoch} USDC/epoch</span>
+                      <span className="font-mono font-medium">{d.royaltyPerEpoch} 0G/epoch</span>
                       <span className="text-[10px] text-muted-foreground/60">charged per epoch run</span>
                     </div>
                     <div className="flex flex-col gap-0.5">
                       <span className="text-muted-foreground">Royalties earned</span>
-                      <span className="font-mono font-medium">{d.lifetimeRoyalties} USDC</span>
+                      <span className="font-mono font-medium">{d.lifetimeRoyalties} 0G</span>
                       <span className="text-[10px] text-muted-foreground/60">settled lifetime</span>
                     </div>
                     <div className="flex flex-col gap-0.5">

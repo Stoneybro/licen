@@ -677,7 +677,7 @@ export default function NewDatasetPage() {
               <div className="grid gap-6 md:grid-cols-2">
                 <div className="space-y-2">
                   <div className="flex flex-col">
-                    <label className="text-xs font-semibold uppercase tracking-wider text-foreground">Price Per Training Cycle (USDC)</label>
+                    <label className="text-xs font-semibold uppercase tracking-wider text-foreground">Price Per Training Cycle (0G)</label>
                     <span className="text-[10px] text-muted-foreground mt-0.5">How much researchers pay you per training epoch.</span>
                   </div>
                   <Input 

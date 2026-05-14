@@ -15,7 +15,7 @@ import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { JobStateBadge } from "@/components/app/job-state-badge";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
-import { formatUnits } from "viem";
+import { formatEther } from "viem";
 import { usePrivy } from "@privy-io/react-auth";
 import { cn } from "@/lib/utils";
 
@@ -156,7 +156,7 @@ function ActiveJobCard({ job }: { job: HydratedJob }) {
           </div>
           <div className="flex flex-col items-end gap-0.5">
             <span className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Locked</span>
-            <span className="font-mono font-bold text-sm">{job.escrow} USDC</span>
+            <span className="font-mono font-bold text-sm">{job.escrow} 0G</span>
           </div>
         </div>
 
@@ -319,9 +319,9 @@ export default function SessionsPage() {
               args: [j.datasetRoot as `0x${string}`],
             });
             const royaltyPerEpoch = policy[3] || BigInt(0);
-            escrow = formatUnits(royaltyPerEpoch * BigInt(j.requestedEpochs), 6);
+            escrow = formatEther(royaltyPerEpoch * BigInt(j.requestedEpochs));
             if (j.royaltySettled) {
-              settledAmount = formatUnits(BigInt(j.royaltySettled), 6);
+              settledAmount = formatEther(BigInt(j.royaltySettled));
             }
           } catch { /* fallback */ }
 
@@ -399,7 +399,7 @@ export default function SessionsPage() {
         <div className="flex items-start gap-3 rounded-lg border border-border bg-muted/20 px-4 py-3">
           <InfoIcon className="size-4 text-muted-foreground shrink-0 mt-0.5" />
           <p className="text-xs text-muted-foreground leading-relaxed">
-            Your USDC is locked in escrow when you submit a request. 0G Compute nodes fine-tune the model inside a secure enclave — once complete, royalties are settled on-chain and any unused escrow is returned to you automatically.
+            Your 0G is locked in escrow when you submit a request. 0G Compute nodes fine-tune the model inside a secure enclave. Once complete, royalties are settled on-chain and any unused escrow is returned automatically.
           </p>
         </div>
 

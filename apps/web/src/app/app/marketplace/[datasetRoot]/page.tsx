@@ -12,7 +12,7 @@ import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { PURPOSES } from "@/lib/mock";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
-import { formatUnits } from "viem";
+import { formatEther } from "viem";
 import { usePrivy } from "@privy-io/react-auth";
 
 function getPurposeLabel(id: string): string {
@@ -76,7 +76,7 @@ export default function MarketplaceDetailPage() {
           active: d.active,
           label: manifest?.title || `Dataset ${d.id.slice(0, 10)}`,
           description: manifest?.description || "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
-          royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
+          royaltyPerEpoch: formatEther(policy[3] || BigInt(0)),
           maxEpochsPerRun: Number(policy[4] || 0),
           maxRunsPerRequester: Number(policy[5] || 0),
           accessTtlSeconds: Number(policy[6] || 0),
@@ -177,7 +177,7 @@ export default function MarketplaceDetailPage() {
                     <span className="text-xs text-muted-foreground flex items-center gap-2">
                       <DollarSign className="size-3" /> Royalty Rate
                     </span>
-                    <span className="text-sm font-mono font-bold">{dataset.royaltyPerEpoch} USDC <span className="text-[10px] font-normal">/ epoch</span></span>
+                    <span className="text-sm font-mono font-bold">{dataset.royaltyPerEpoch} 0G <span className="text-[10px] font-normal">/ epoch</span></span>
                   </div>
                   <Separator className="opacity-40" />
                   <div className="flex items-center justify-between">
