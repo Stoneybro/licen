@@ -107,6 +107,16 @@ export default function JobDetailPage() {
         setLoading(false);
         return;
       }
+      const summaryRes = await fetch("/api/app/dataset-summaries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          datasetRoots: [jobData.datasetRoot],
+          includeJobStats: false,
+        }),
+      });
+      const summaryJson = summaryRes.ok ? await summaryRes.json() : { datasets: [] };
+      const datasetSummary = summaryJson.datasets?.[0] ?? null;
 
       const publicClient = getOgPublicClient();
       const policyAddress = getDataPolicyAddress();
@@ -130,7 +140,7 @@ export default function JobDetailPage() {
 
       setJob({
         ...jobData,
-        datasetLabel: `Dataset ${jobData.datasetRoot.slice(0, 10)}`,
+        datasetLabel: datasetSummary?.title || `Dataset ${jobData.datasetRoot.slice(0, 10)}`,
         purposeLabel: "NEURAL_RESEARCH",
         providerId: "0G Compute",
         provider: "0x0000000000000000000000000000000000000000",

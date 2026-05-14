@@ -57,6 +57,18 @@ export default function ResearcherDashboard() {
       
       const json = await res.json();
       const indexerJobs = json.data?.Job || [];
+      const summaryRes = await fetch("/api/app/dataset-summaries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          datasetRoots: Array.from(new Set(indexerJobs.map((job: any) => job.datasetRoot))),
+          includeJobStats: false,
+        }),
+      });
+      const summaryJson = summaryRes.ok ? await summaryRes.json() : { datasets: [] };
+      const summariesByRoot = Object.fromEntries(
+        (summaryJson.datasets ?? []).map((dataset: any) => [dataset.datasetRoot.toLowerCase(), dataset])
+      );
 
       const publicClient = getOgPublicClient();
       const policyAddress = getDataPolicyAddress();
@@ -81,7 +93,7 @@ export default function ResearcherDashboard() {
           return {
             jobId: j.id,
             datasetRoot: j.datasetRoot,
-            datasetLabel: `Secure Dataset ${j.datasetRoot.slice(2, 6).toUpperCase()}`,
+            datasetLabel: summariesByRoot[j.datasetRoot.toLowerCase()]?.title || `Secure Dataset ${j.datasetRoot.slice(2, 6).toUpperCase()}`,
             requester: j.requester,
             purposeLabel: "NEURAL_RESEARCH",
             requestedEpochs: j.requestedEpochs,

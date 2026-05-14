@@ -629,7 +629,7 @@ export default function NewDatasetPage() {
                   size="sm" 
                   onClick={() => setAllowedPurposeIds([...PUBLISH_PURPOSES])}
                 >
-                  Select All
+                  All Purposes
                 </Button>
               </div>
 

@@ -95,6 +95,16 @@ export default function RequestAccessPage() {
         setLoading(false);
         return;
       }
+      const summaryRes = await fetch("/api/app/dataset-summaries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          datasetRoots: [d.id],
+          includeJobStats: false,
+        }),
+      });
+      const summaryJson = summaryRes.ok ? await summaryRes.json() : { datasets: [] };
+      const datasetSummary = summaryJson.datasets?.[0] ?? null;
 
       const publicClient = getOgPublicClient();
       const policyAddress = getDataPolicyAddress();
@@ -108,7 +118,8 @@ export default function RequestAccessPage() {
       const hydrated = {
         datasetRoot: d.id,
         manifestHash: d.manifestHash,
-        label: `Dataset ${d.id.slice(0, 10)}`,
+        label: datasetSummary?.title || `Dataset ${d.id.slice(0, 10)}`,
+        description: datasetSummary?.description || "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
         royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
         royaltyPerEpochRaw: policy[3] || BigInt(0),
         maxEpochsPerRun: Number(policy[4] || 0),

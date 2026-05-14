@@ -290,6 +290,18 @@ export default function SessionsPage() {
 
       const json = await res.json();
       const indexerJobs = json.data?.Job || [];
+      const summaryRes = await fetch("/api/app/dataset-summaries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          datasetRoots: Array.from(new Set(indexerJobs.map((job: any) => job.datasetRoot))),
+          includeJobStats: false,
+        }),
+      });
+      const summaryJson = summaryRes.ok ? await summaryRes.json() : { datasets: [] };
+      const summariesByRoot = Object.fromEntries(
+        (summaryJson.datasets ?? []).map((dataset: any) => [dataset.datasetRoot.toLowerCase(), dataset])
+      );
 
       const publicClient = getOgPublicClient();
       const policyAddress = getDataPolicyAddress();
@@ -316,7 +328,7 @@ export default function SessionsPage() {
           return {
             jobId: j.id,
             datasetRoot: j.datasetRoot,
-            datasetLabel: `Dataset ${j.datasetRoot.slice(0, 10)}`,
+            datasetLabel: summariesByRoot[j.datasetRoot.toLowerCase()]?.title || `Dataset ${j.datasetRoot.slice(0, 10)}`,
             requestedEpochs: j.requestedEpochs,
             actualEpochs: j.actualEpochs ?? null,
             escrow,

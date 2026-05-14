@@ -21,6 +21,7 @@ type RequestBody = {
   ownerAddress?: string;
   activeOnly?: boolean;
   includeJobStats?: boolean;
+  datasetRoots?: string[];
 };
 
 function buildDatasetQuery(body: RequestBody): string {
@@ -32,6 +33,11 @@ function buildDatasetQuery(body: RequestBody): string {
 
   if (body.activeOnly) {
     where.push(`active: { _eq: true }`);
+  }
+
+  if (Array.isArray(body.datasetRoots) && body.datasetRoots.length > 0) {
+    const encodedRoots = body.datasetRoots.map((root) => `"${root}"`).join(", ");
+    where.push(`id: { _in: [${encodedRoots}] }`);
   }
 
   const whereClause = where.length > 0 ? `(where: { ${where.join(", ")} }, order_by: { timestamp: desc })` : `(order_by: { timestamp: desc })`;

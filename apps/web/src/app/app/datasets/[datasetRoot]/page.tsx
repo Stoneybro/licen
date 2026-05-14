@@ -198,30 +198,35 @@ export default function DatasetDetailPage() {
           {/* Left Column: Details & History */}
           <div className="lg:col-span-2 flex flex-col gap-6">
             {/* Overview Card */}
-            <Card className="border-border/40 shadow-sm overflow-hidden">
-              <CardHeader className="bg-muted/10 border-b border-border/20 py-4">
+            <Card className="border-border/40 shadow-sm overflow-hidden flex flex-col">
+              <CardHeader className="bg-muted/10 border-b border-border/20 py-3 flex flex-row items-center justify-between space-y-0">
                 <CardTitle className="text-sm font-semibold">Dataset Overview</CardTitle>
-              </CardHeader>
-              <CardContent className="pt-6 space-y-4">
-                <p className="text-sm text-muted-foreground leading-relaxed">
-                  {dataset.description} This dataset is hosted on 0G Storage and its access is strictly enforced by the 0G Compute network via Trusted Execution Environments (TEEs).
-                </p>
                 {dataset.createdAt && (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                    <span className="font-semibold uppercase tracking-wider text-[10px]">Published</span>
+                  <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span className="font-semibold uppercase tracking-wider text-[9px]">Published</span>
                     <span>{new Date(dataset.createdAt).toLocaleString()}</span>
                   </div>
                 )}
+              </CardHeader>
+              <CardContent className="pt-4 pb-5 flex-1">
+                <p className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap">
+                  {dataset.description}
+                </p>
               </CardContent>
+              <div className="bg-muted/30 border-t border-border/20 px-6 py-3">
+                <p className="text-[11px] text-muted-foreground leading-relaxed">
+                  This dataset is hosted on 0G Storage and its access is strictly enforced by the 0G Compute network via Trusted Execution Environments (TEEs).
+                </p>
+              </div>
             </Card>
 
             {OPTIONAL_MANIFEST_FIELDS.some(({ key }) => Boolean(dataset[key])) && (
               <Card className="border-border/40 shadow-sm overflow-hidden">
-                <CardHeader className="bg-muted/10 border-b border-border/20 py-4">
+                <CardHeader className="bg-muted/10 border-b border-border/20 py-3">
                   <CardTitle className="text-sm font-semibold">Manifest Details</CardTitle>
                   <CardDescription className="text-xs">Terms and metadata loaded from the public manifest stored on 0G Storage.</CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-5 pt-6">
+                <CardContent className="space-y-5 pt-4">
                   {OPTIONAL_MANIFEST_FIELDS.map(({ key, label }) =>
                     dataset[key] ? (
                       <div key={key} className="space-y-1.5">

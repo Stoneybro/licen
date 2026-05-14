@@ -123,11 +123,12 @@ export default function DatasetsPage() {
         ) : (
           <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
             {myDatasets.map((d) => (
-              <Card key={d.datasetRoot} className="hover:border-foreground/20 transition-colors">
-                <CardHeader className="pb-2">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex flex-col gap-0.5 min-w-0">
-                      <CardTitle className="text-sm font-medium truncate">{d.label}</CardTitle>
+              <Link href={`/app/datasets/${d.datasetRoot}`} key={d.datasetRoot} className="block group">
+                <Card className="hover:border-foreground/40 transition-colors group-hover:shadow-md h-full flex flex-col">
+                  <CardHeader className="pb-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex flex-col gap-0.5 min-w-0">
+                        <CardTitle className="text-base font-semibold truncate group-hover:text-primary transition-colors">{d.label}</CardTitle>
                       <HashChip hash={d.datasetRoot} />
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
@@ -139,7 +140,9 @@ export default function DatasetsPage() {
                       )}
                     </div>
                   </div>
-                  <CardDescription className="text-xs mt-1 line-clamp-2">{d.description}</CardDescription>
+                  <CardDescription className="text-xs mt-1.5 leading-relaxed text-muted-foreground/90">
+                    {d.description?.length > 120 ? d.description.slice(0, 120) + "..." : d.description}
+                  </CardDescription>
                 </CardHeader>
                 <CardContent className="flex flex-col gap-3">
                   <div className="grid grid-cols-3 gap-2 text-xs">
@@ -187,12 +190,13 @@ export default function DatasetsPage() {
                       {d.openRequesters ? "Open to all researchers" : `Specific researchers`}
                       {d.requireResultAttestation ? " · proof required" : ""}
                     </p>
-                    <Button asChild size="sm" variant="ghost" className="h-6 text-xs">
-                      <Link href={`/app/datasets/${d.datasetRoot}`}>Manage →</Link>
-                    </Button>
+                    <span className="inline-flex h-6 items-center justify-center rounded-md px-3 text-xs font-medium hover:bg-accent hover:text-accent-foreground text-primary/80 group-hover:text-primary transition-colors">
+                      Manage →
+                    </span>
                   </div>
                 </CardContent>
               </Card>
+            </Link>
             ))}
           </div>
         )}
