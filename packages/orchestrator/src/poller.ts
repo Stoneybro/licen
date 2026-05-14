@@ -20,7 +20,7 @@ import { computeJobs } from "./db/schema.js";
 import { eq } from "drizzle-orm";
 
 const ENVIO_GRAPHQL_URL =
-  process.env.ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql";
+  process.env.ENVIO_GRAPHQL_URL ?? "https://indexer.dev.hyperindex.xyz/001fb92/v1/graphql";
 
 const POLL_INTERVAL_MS = parseInt(process.env.ORCHESTRATOR_POLL_MS ?? "5000", 10);
 

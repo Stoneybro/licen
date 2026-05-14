@@ -36,7 +36,7 @@ Set this in `apps/web/.env.local`:
 ```bash
 NEXT_PUBLIC_OG_DATA_POLICY_ADDRESS=<new_data_policy_address>
 NEXT_PUBLIC_OG_EVM_RPC_URL=https://evmrpc-testnet.0g.ai
-NEXT_PUBLIC_ENVIO_GRAPHQL_URL=http://127.0.0.1:8080/v1/graphql
+NEXT_PUBLIC_ENVIO_GRAPHQL_URL=https://indexer.dev.hyperindex.xyz/001fb92/v1/graphql
 ```
 
 Keep your existing web env for Privy, DB, and storage.
@@ -48,7 +48,7 @@ Set this in `packages/orchestrator/.env`:
 ```bash
 OG_DATA_POLICY_ADDRESS=<new_data_policy_address>
 OG_EVM_RPC_URL=https://evmrpc-testnet.0g.ai
-ENVIO_GRAPHQL_URL=http://127.0.0.1:8080/v1/graphql
+ENVIO_GRAPHQL_URL=https://indexer.dev.hyperindex.xyz/001fb92/v1/graphql
 ```
 
 Also make sure these are present and funded:

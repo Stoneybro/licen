@@ -23,13 +23,13 @@ Track D Phase 1 also fixed a critical deployment blocker: 13 pages had the Envio
 
 **Problem:** Every server component that queries the Envio HyperIndex had the URL hardcoded:
 ```typescript
-const res = await fetch("http://127.0.0.1:8080/v1/graphql", { ... });
+const res = await fetch("https://indexer.dev.hyperindex.xyz/001fb92/v1/graphql", { ... });
 ```
 This works in local dev but silently breaks on Vercel deployment.
 
 **Fix:** All 13 files were patched to use:
 ```typescript
-process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql"
+process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "https://indexer.dev.hyperindex.xyz/001fb92/v1/graphql"
 ```
 
 **Files patched:**

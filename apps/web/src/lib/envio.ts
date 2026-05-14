@@ -10,7 +10,7 @@
  */
 
 const ENVIO_URL =
-  process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql";
+  process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "https://indexer.dev.hyperindex.xyz/001fb92/v1/graphql";
 
 /**
  * Execute a GraphQL query against the Envio HyperIndex endpoint.
