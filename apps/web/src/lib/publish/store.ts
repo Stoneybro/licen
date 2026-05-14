@@ -5,7 +5,7 @@ import type {
 } from "@/lib/publish/contracts";
 import { db } from "@/db/db";
 import { publishRequests } from "@/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray } from "drizzle-orm";
 
 export async function savePublishRequest(requestId: string, payload: PublishSubmitRequest): Promise<PublishStatusResponse> {
   const now = new Date().toISOString();
@@ -70,4 +70,29 @@ export async function getPublishPayloadByDatasetRoot(datasetRoot: string): Promi
   });
 
   return (stored?.payload as PublishSubmitRequest | undefined) ?? null;
+}
+
+export async function getPublishPayloadsByDatasetRoots(datasetRoots: string[]): Promise<Record<string, PublishSubmitRequest>> {
+  const normalizedRoots = Array.from(
+    new Set(datasetRoots.map((root) => root.toLowerCase()))
+  );
+
+  if (normalizedRoots.length === 0) {
+    return {};
+  }
+
+  const rows = await db.query.publishRequests.findMany({
+    where: inArray(publishRequests.datasetRoot, normalizedRoots),
+    columns: {
+      datasetRoot: true,
+      payload: true,
+    },
+  });
+
+  return Object.fromEntries(
+    rows.map((row) => [
+      row.datasetRoot.toLowerCase(),
+      row.payload as PublishSubmitRequest,
+    ])
+  );
 }

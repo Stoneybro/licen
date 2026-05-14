@@ -10,8 +10,6 @@ import { Separator } from "@/components/ui/separator";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { PURPOSES } from "@/lib/mock";
-import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
-import { formatUnits } from "viem";
 import { usePrivy } from "@privy-io/react-auth";
 
 function getPurposeLabel(id: string): string {
@@ -31,66 +29,26 @@ export default function MarketplacePage() {
   React.useEffect(() => {
     async function fetchAndHydrate() {
       try {
-        const query = `
-          query GetDatasets {
-            Dataset(where: { active: { _eq: true } }, order_by: { timestamp: desc }) {
-              id
-              owner
-              manifestHash
-              active
-              timestamp
-            }
-          }
-        `;
-        const res = await fetch(process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql", {
+        const res = await fetch("/api/app/dataset-summaries", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
+          body: JSON.stringify({ activeOnly: true, includeJobStats: false }),
         });
         const json = await res.json();
-        const indexerDatasets = json.data?.Dataset || [];
-        const manifestRes = await fetch("/api/publish/manifests/summary", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ datasetRoots: indexerDatasets.map((d: any) => d.id) }),
-        });
-        const manifestJson = manifestRes.ok ? await manifestRes.json() : { manifests: {} };
-        const manifests = manifestJson.manifests ?? {};
+        const datasets = (json.datasets ?? []).map((d: any) => ({
+          datasetRoot: d.datasetRoot,
+          owner: d.owner,
+          active: d.active,
+          label: d.title,
+          description: d.description,
+          royaltyPerEpoch: d.policy?.royaltyPerEpoch ?? 0,
+          maxEpochsPerRun: d.policy?.maxEpochsPerRun ?? 0,
+          maxRunsPerRequester: d.policy?.maxRunsPerRequester ?? 0,
+          openRequesters: d.policy?.openRequesters ?? false,
+          allowedPurposeIds: d.policy?.allowedPurposeIds ?? [],
+        }));
 
-        const publicClient = getOgPublicClient();
-        const policyAddress = getDataPolicyAddress();
-
-        const hydrated = await Promise.all(
-          indexerDatasets.map(async (d: any) => {
-            const manifest = manifests[d.id.toLowerCase()] ?? null;
-            try {
-              const policy: any = await publicClient.readContract({
-                address: policyAddress,
-                abi: DATA_POLICY_ABI,
-                functionName: "policies",
-                args: [d.id as `0x${string}`],
-              });
-
-              return {
-                datasetRoot: d.id,
-                owner: d.owner,
-                active: d.active,
-                label: manifest?.title || `Dataset ${d.id.slice(0, 10)}`,
-                description: manifest?.description || "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
-                royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
-                maxEpochsPerRun: policy[4] || 0,
-                maxRunsPerRequester: policy[5] || 0,
-                openRequesters: policy[10] || false,
-                allowedPurposeIds: ["0x4e5609cbe0fd5356bb6b2036533ec04d260155597359f601778166b6c3049ed8"],
-              };
-            } catch (err) {
-              console.error(`Failed to hydrate dataset ${d.id}:`, err);
-              return null;
-            }
-          })
-        );
-
-        setDatasets(hydrated.filter(Boolean));
+        setDatasets(datasets);
       } catch (e) {
         console.error("Fetch failed", e);
       } finally {

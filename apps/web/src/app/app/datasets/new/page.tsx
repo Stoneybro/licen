@@ -31,6 +31,7 @@ import {
   type PublishStatusResponse,
   type PublishSubmitRequest,
   type PublishSubmitSuccessResponse,
+  type PublicPolicyManifest,
   type PublishPolicyConfig,
 } from "@/lib/publish/contracts";
 import { encryptDatasetFile, sealKeyEnvelope } from "@/lib/publish/encryption";
@@ -371,7 +372,7 @@ export default function NewDatasetPage() {
         return acc;
       }, {});
 
-      const manifestObj = {
+      const manifestObj: PublicPolicyManifest = {
         version: "1.0",
         manifestType: "licen.public-manifest",
         title,

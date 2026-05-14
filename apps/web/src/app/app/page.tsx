@@ -10,8 +10,6 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { usePrivy } from "@privy-io/react-auth";
-import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
-import { formatUnits } from "viem";
 
 export default function PublisherDashboard() {
   const { user } = usePrivy();
@@ -25,103 +23,25 @@ export default function PublisherDashboard() {
     async function fetchDashboardData() {
       if (!walletAddress) return;
       try {
-        const query = `
-          query GetDashboardData {
-            Dataset(where: { owner: { _ilike: "${walletAddress}" } }) {
-              id
-              owner
-              manifestHash
-              active
-              timestamp
-            }
-          }
-        `;
-        const res = await fetch(process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql", {
+        const res = await fetch("/api/app/dataset-summaries", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ query }),
+          body: JSON.stringify({ ownerAddress: walletAddress, includeJobStats: true }),
         });
         const json = await res.json();
-        const indexerDatasets = json.data?.Dataset || [];
-        const manifestRes = await fetch("/api/publish/manifests/summary", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ datasetRoots: indexerDatasets.map((d: any) => d.id) }),
-        });
-        const manifestJson = manifestRes.ok ? await manifestRes.json() : { manifests: {} };
-        const manifests = manifestJson.manifests ?? {};
+        const datasets = (json.datasets ?? []).map((d: any) => ({
+          datasetRoot: d.datasetRoot,
+          active: d.active,
+          label: d.title,
+          royaltyPerEpoch: d.policy?.royaltyPerEpoch ?? 0,
+          lifetimeRoyalties: `${Number(d.stats?.lifetimeRoyalties ?? 0) / 1_000_000}`,
+          jobCount: d.stats?.jobCount ?? 0,
+          activeJobCount: d.stats?.activeJobCount ?? 0,
+        }));
 
-        const jobStatsResults = await Promise.all(
-          indexerDatasets.map(async (d: any) => {
-            try {
-              const jobQuery = `query DatasetJobs {
-                Job(where: { datasetRoot: { _ilike: "${d.id}" } }) {
-                  state
-                  royaltySettled
-                }
-              }`;
-              const jr = await fetch(process.env.NEXT_PUBLIC_ENVIO_GRAPHQL_URL ?? "http://127.0.0.1:8080/v1/graphql", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ query: jobQuery }),
-              });
-              const jj = await jr.json();
-              const jobs: any[] = jj.data?.Job || [];
-              const lifetimeRoyalties = jobs.reduce((acc: bigint, j: any) => {
-                return acc + (j.royaltySettled ? BigInt(j.royaltySettled) : BigInt(0));
-              }, BigInt(0));
-              const activeJobCount = jobs.filter((j: any) =>
-                ["Requested", "Granted", "Dispatching", "Running"].includes(j.state)
-              ).length;
-              return {
-                lifetimeRoyalties: formatUnits(lifetimeRoyalties, 6),
-                jobCount: jobs.length,
-                activeJobCount,
-              };
-            } catch (err) {
-              console.error(err);
-              return {
-                lifetimeRoyalties: "0",
-                jobCount: 0,
-                activeJobCount: 0,
-              };
-            }
-          })
-        );
-
-        const publicClient = getOgPublicClient();
-        const policyAddress = getDataPolicyAddress();
-
-        const hydrated = await Promise.all(
-          indexerDatasets.map(async (d: any, idx: number) => {
-            const stats = jobStatsResults[idx];
-            const manifest = manifests[d.id.toLowerCase()] ?? null;
-            try {
-              const policy: any = await publicClient.readContract({
-                address: policyAddress,
-                abi: DATA_POLICY_ABI,
-                functionName: "policies",
-                args: [d.id as `0x${string}`],
-              });
-              return {
-                datasetRoot: d.id,
-                active: d.active,
-                label: manifest?.title || `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
-                royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
-                lifetimeRoyalties: stats.lifetimeRoyalties,
-                jobCount: stats.jobCount,
-                activeJobCount: stats.activeJobCount,
-              };
-            } catch (err) {
-              console.error(err);
-              return null;
-            }
-          })
-        );
-
-        setMyDatasets(hydrated.filter(Boolean));
+        setMyDatasets(datasets);
         setActiveJobsOnMyDatasets(
-          hydrated.filter((d): d is NonNullable<typeof d> => Boolean(d) && d.activeJobCount > 0)
+          datasets.filter((d: any) => d.activeJobCount > 0)
         );
       } catch (err) {
         console.error(err);
