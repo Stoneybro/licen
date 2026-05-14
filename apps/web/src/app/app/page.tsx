@@ -43,6 +43,13 @@ export default function PublisherDashboard() {
         });
         const json = await res.json();
         const indexerDatasets = json.data?.Dataset || [];
+        const manifestRes = await fetch("/api/publish/manifests/summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ datasetRoots: indexerDatasets.map((d: any) => d.id) }),
+        });
+        const manifestJson = manifestRes.ok ? await manifestRes.json() : { manifests: {} };
+        const manifests = manifestJson.manifests ?? {};
 
         const jobStatsResults = await Promise.all(
           indexerDatasets.map(async (d: any) => {
@@ -88,6 +95,7 @@ export default function PublisherDashboard() {
         const hydrated = await Promise.all(
           indexerDatasets.map(async (d: any, idx: number) => {
             const stats = jobStatsResults[idx];
+            const manifest = manifests[d.id.toLowerCase()] ?? null;
             try {
               const policy: any = await publicClient.readContract({
                 address: policyAddress,
@@ -98,7 +106,7 @@ export default function PublisherDashboard() {
               return {
                 datasetRoot: d.id,
                 active: d.active,
-                label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
+                label: manifest?.title || `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
                 royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
                 lifetimeRoyalties: stats.lifetimeRoyalties,
                 jobCount: stats.jobCount,

@@ -1,4 +1,5 @@
 import type {
+  PublicPolicyManifest,
   PublishStatusResponse,
   PublishSubmitRequest,
 } from "@/lib/publish/contracts";
@@ -60,4 +61,13 @@ export async function getKeyEnvelopeByDatasetRoot(datasetRoot: string): Promise<
   });
 
   return stored?.encryptedKeyEnvelope || null;
+}
+
+export async function getPublishPayloadByDatasetRoot(datasetRoot: string): Promise<PublishSubmitRequest | null> {
+  const stored = await db.query.publishRequests.findFirst({
+    where: eq(publishRequests.datasetRoot, datasetRoot.toLowerCase()),
+    columns: { payload: true },
+  });
+
+  return (stored?.payload as PublishSubmitRequest | undefined) ?? null;
 }

@@ -56,6 +56,9 @@ export default function MarketplaceDetailPage() {
           setLoading(false);
           return;
         }
+        const manifestRes = await fetch(`/api/publish/manifest/${d.id}`);
+        const manifestJson = manifestRes.ok ? await manifestRes.json() : null;
+        const manifest = manifestJson?.manifest ?? null;
 
         const publicClient = getOgPublicClient();
         const policyAddress = getDataPolicyAddress();
@@ -71,8 +74,8 @@ export default function MarketplaceDetailPage() {
           owner: d.owner,
           manifestHash: d.manifestHash,
           active: d.active,
-          label: `Dataset ${d.id.slice(0, 10)}`,
-          description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
+          label: manifest?.title || `Dataset ${d.id.slice(0, 10)}`,
+          description: manifest?.description || "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
           royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
           maxEpochsPerRun: Number(policy[4] || 0),
           maxRunsPerRequester: Number(policy[5] || 0),

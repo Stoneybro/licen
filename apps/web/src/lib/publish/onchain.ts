@@ -118,7 +118,8 @@ export function buildRegisterDatasetArgs(input: {
     input.datasetRoot,
     input.manifestHash,
     // royaltyPerEpoch: user enters whole USDC (e.g. "10"), encode as 6-decimal raw units (MockUSDC = 6 decimals)
-    parseUnits(String(Math.max(0, input.policy.royaltyPerEpoch)), 6),
+    // We truncate to 6 decimals to avoid parseUnits throwing if the user pasted a longer decimal string
+    parseUnits(input.policy.royaltyPerEpoch.toFixed(6), 6),
     toUint32(input.policy.maxEpochsPerRun),
     toUint32(input.policy.maxRunsPerRequester),
     ttlSeconds,

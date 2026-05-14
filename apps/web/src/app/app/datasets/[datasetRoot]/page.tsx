@@ -23,6 +23,15 @@ function getPurposeLabel(id: string): string {
   return id.slice(0, 8);
 }
 
+const OPTIONAL_MANIFEST_FIELDS = [
+  { key: "legalText", label: "Legal Terms" },
+  { key: "usageTaxonomy", label: "Usage Taxonomy" },
+  { key: "taskConstraints", label: "Task Constraints" },
+  { key: "complianceNotes", label: "Compliance Notes" },
+  { key: "attribution", label: "Attribution Rules" },
+  { key: "derivativeRights", label: "Derivative Rights" },
+] as const;
+
 export default function DatasetDetailPage() {
   const { datasetRoot } = useParams<{ datasetRoot: string }>();
   const [dataset, setDataset] = React.useState<any>(null);
@@ -70,6 +79,9 @@ export default function DatasetDetailPage() {
         // 2. Hydrate Policy from On-chain
         const publicClient = getOgPublicClient();
         const policyAddress = getDataPolicyAddress();
+        const manifestRes = await fetch(`/api/publish/manifest/${d.id}`);
+        const manifestJson = manifestRes.ok ? await manifestRes.json() : null;
+        const manifest = manifestJson?.manifest ?? null;
         const policy: any = await publicClient.readContract({
           address: policyAddress,
           abi: DATA_POLICY_ABI,
@@ -84,9 +96,18 @@ export default function DatasetDetailPage() {
         setDataset({
           datasetRoot: d.id,
           manifestHash: d.manifestHash,
+          manifestUri: manifestJson?.manifestUri ?? null,
           active: d.active,
-          label: `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
-          description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
+          label: manifest?.title || `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
+          description: manifest?.description || "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
+          createdAt: manifest?.createdAt || null,
+          ownerAddress: manifest?.ownerAddress || null,
+          legalText: manifest?.legalText || "",
+          usageTaxonomy: manifest?.usageTaxonomy || "",
+          taskConstraints: manifest?.taskConstraints || "",
+          complianceNotes: manifest?.complianceNotes || "",
+          attribution: manifest?.attribution || "",
+          derivativeRights: manifest?.derivativeRights || "",
           royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
           maxEpochsPerRun: Number(policy[4] || 0),
           maxRunsPerRequester: Number(policy[5] || 0),
@@ -175,12 +196,37 @@ export default function DatasetDetailPage() {
               <CardHeader className="bg-muted/10 border-b border-border/20 py-4">
                 <CardTitle className="text-sm font-semibold">Dataset Overview</CardTitle>
               </CardHeader>
-              <CardContent className="pt-6">
+              <CardContent className="pt-6 space-y-4">
                 <p className="text-sm text-muted-foreground leading-relaxed">
                   {dataset.description} This dataset is hosted on 0G Storage and its access is strictly enforced by the 0G Compute network via Trusted Execution Environments (TEEs).
                 </p>
+                {dataset.createdAt && (
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span className="font-semibold uppercase tracking-wider text-[10px]">Published</span>
+                    <span>{new Date(dataset.createdAt).toLocaleString()}</span>
+                  </div>
+                )}
               </CardContent>
             </Card>
+
+            {OPTIONAL_MANIFEST_FIELDS.some(({ key }) => Boolean(dataset[key])) && (
+              <Card className="border-border/40 shadow-sm overflow-hidden">
+                <CardHeader className="bg-muted/10 border-b border-border/20 py-4">
+                  <CardTitle className="text-sm font-semibold">Manifest Details</CardTitle>
+                  <CardDescription className="text-xs">Terms and metadata loaded from the public manifest stored on 0G Storage.</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-5 pt-6">
+                  {OPTIONAL_MANIFEST_FIELDS.map(({ key, label }) =>
+                    dataset[key] ? (
+                      <div key={key} className="space-y-1.5">
+                        <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">{label}</p>
+                        <p className="text-sm leading-relaxed text-muted-foreground whitespace-pre-wrap">{dataset[key]}</p>
+                      </div>
+                    ) : null
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
             {/* Access Policy Card */}
             <Card className="border-border/40 shadow-sm">
@@ -238,6 +284,12 @@ export default function DatasetDetailPage() {
                         </div>
                       )}
                     </div>
+                    {dataset.manifestUri && (
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Manifest Root</p>
+                        <HashChip hash={dataset.manifestUri} front={10} back={8} />
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>

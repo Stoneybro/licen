@@ -239,8 +239,8 @@ export function validatePublishSubmitRequest(input: unknown): ValidationResult<P
       errors.push("policy.allowedPurposeIds contains unsupported values");
     }
 
-    if (!isPositiveNumber(policy.royaltyPerEpoch)) {
-      errors.push("policy.royaltyPerEpoch must be a positive number");
+    if (typeof policy.royaltyPerEpoch !== "number" || !Number.isFinite(policy.royaltyPerEpoch) || policy.royaltyPerEpoch < 0) {
+      errors.push("policy.royaltyPerEpoch must be a non-negative number");
     }
 
     if (!isPositiveInt(policy.maxEpochsPerRun)) {

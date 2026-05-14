@@ -1,7 +1,15 @@
 import "server-only";
 import { Indexer, MemData } from "@0gfoundation/0g-ts-sdk";
 import { ethers } from "ethers";
-import type { PublishManifestUploadRequest, PublishManifestUploadResponse } from "@/lib/publish/contracts";
+import { promises as fs } from "fs";
+import os from "os";
+import path from "path";
+import {
+  type PublicPolicyManifest,
+  type PublishManifestUploadRequest,
+  type PublishManifestUploadResponse,
+  validatePublicPolicyManifest,
+} from "@/lib/publish/contracts";
 
 function requireEnv(name: string): string {
   const value = process.env[name] || process.env[`NEXT_PUBLIC_${name}`];
@@ -42,4 +50,29 @@ export async function uploadManifestToOgStorage(
     manifestHash: payload.manifestHash,
     storedAt: new Date().toISOString(),
   };
+}
+
+export async function downloadManifestFromOgStorage(manifestUri: string): Promise<PublicPolicyManifest> {
+  const indexerUrl = requireEnv("OG_STORAGE_INDEXER_URL");
+  const indexer = new Indexer(indexerUrl);
+  const tmpPath = path.join(os.tmpdir(), `licen-manifest-${manifestUri.replace(/^0x/, "")}.json`);
+
+  try {
+    const downloadErr = await indexer.download(manifestUri, tmpPath, false);
+    if (downloadErr !== null) {
+      throw new Error(`0G storage download error: ${downloadErr}`);
+    }
+
+    const manifestJson = await fs.readFile(tmpPath, "utf8");
+    const parsed = JSON.parse(manifestJson);
+    const validated = validatePublicPolicyManifest(parsed);
+
+    if (!validated.ok) {
+      throw new Error(`Stored manifest failed validation: ${validated.errors.join(", ")}`);
+    }
+
+    return validated.data;
+  } finally {
+    await fs.unlink(tmpPath).catch(() => undefined);
+  }
 }

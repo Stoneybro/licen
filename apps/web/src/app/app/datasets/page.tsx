@@ -42,6 +42,13 @@ export default function DatasetsPage() {
         });
         const json = await res.json();
         const indexerDatasets: any[] = json.data?.Dataset || [];
+        const manifestRes = await fetch("/api/publish/manifests/summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ datasetRoots: indexerDatasets.map((d: any) => d.id) }),
+        });
+        const manifestJson = manifestRes.ok ? await manifestRes.json() : { manifests: {} };
+        const manifests = manifestJson.manifests ?? {};
 
         // Fetch job stats per dataset in parallel
         const jobStatsResults = await Promise.all(
@@ -79,6 +86,7 @@ export default function DatasetsPage() {
         const hydrated = await Promise.all(
           indexerDatasets.map(async (d: any, idx: number) => {
             const stats = jobStatsResults[idx];
+            const manifest = manifests[d.id.toLowerCase()] ?? null;
             try {
               const policy: any = await publicClient.readContract({
                 address: policyAddress,
@@ -90,8 +98,8 @@ export default function DatasetsPage() {
               return {
                 datasetRoot: d.id,
                 active: d.active,
-                label: `Dataset ${d.id.slice(0, 10)}`,
-                description: "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
+                label: manifest?.title || `Dataset ${d.id.slice(0, 10)}`,
+                description: manifest?.description || "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
                 royaltyPerEpoch: formatUnits(policy[3] || BigInt(0), 6),
                 maxEpochsPerRun: Number(policy[4] || 0),
                 maxRunsPerRequester: Number(policy[5] || 0),

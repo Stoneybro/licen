@@ -19,7 +19,6 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Switch } from "@/components/ui/switch";
 import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from "@/components/ui/accordion";
 import { cn } from "@/lib/utils";
 import Link from "next/link";
@@ -154,14 +153,13 @@ export default function NewDatasetPage() {
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [enabledManifestSections, setEnabledManifestSections] = useState<OptionalManifestSectionId[]>([]);
   const [optionalManifestValues, setOptionalManifestValues] = useState<OptionalManifestSectionValues>(
     INITIAL_OPTIONAL_SECTION_VALUES
   );
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [allowedPurposeIds, setAllowedPurposeIds] = useState<PublishPurpose[]>([PUBLISH_PURPOSES[0]]);
 
-  const [royaltyPerEpoch, setRoyaltyPerEpoch] = useState<number>(10);
+  const [royaltyPerEpoch, setRoyaltyPerEpoch] = useState<string>("10");
   const [maxEpochsPerRun, setMaxEpochsPerRun] = useState<number>(10);
   const [maxRunsPerRequester, setMaxRunsPerRequester] = useState<number>(1);
   const [ttlValue, setTtlValue] = useState<number>(30);
@@ -357,7 +355,7 @@ export default function NewDatasetPage() {
       
       const policyConfig: PublishPolicyConfig = {
         allowedPurposeIds,
-        royaltyPerEpoch,
+        royaltyPerEpoch: parseFloat(royaltyPerEpoch) || 0,
         maxEpochsPerRun,
         maxRunsPerRequester,
         ttlHours,
@@ -366,8 +364,8 @@ export default function NewDatasetPage() {
         allowedRequesters: openRequesters ? [] : allowedRequesters,
       };
 
-      const optionalManifestSections = enabledManifestSections.reduce<Record<string, string>>((acc, sectionId) => {
-        const value = optionalManifestValues[sectionId].trim();
+      const optionalManifestSections = Object.entries(optionalManifestValues).reduce<Record<string, string>>((acc, [sectionId, rawValue]) => {
+        const value = rawValue.trim();
         if (!value) return acc;
         acc[sectionId] = value;
         return acc;
@@ -670,11 +668,17 @@ export default function NewDatasetPage() {
                     <span className="text-[10px] text-muted-foreground mt-0.5">How much researchers pay you per training epoch.</span>
                   </div>
                   <Input 
-                    type="number"
-                    min="0"
-                    className="bg-background mt-1"
+                    type="text"
+                    inputMode="decimal"
+                    placeholder="0.00"
+                    className="bg-background mt-1 font-mono"
                     value={royaltyPerEpoch}
-                    onChange={(e) => setRoyaltyPerEpoch(Number(e.target.value))}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === "" || /^[0-9]*\.?[0-9]*$/.test(val)) {
+                        setRoyaltyPerEpoch(val);
+                      }
+                    }}
                   />
                 </div>
 
@@ -725,17 +729,30 @@ export default function NewDatasetPage() {
               </div>
 
               <div className="mt-6 rounded-xl border border-border/60 bg-background/60 p-4">
-                <div className="flex items-start justify-between gap-4">
+                <div className="flex flex-col gap-4">
                   <div className="space-y-1">
                     <label className="text-xs font-semibold uppercase tracking-wider text-foreground">Researcher Access</label>
                     <p className="text-[10px] text-muted-foreground">
                       Open access allows any wallet to request training. Restricted access only allows approved researcher wallets.
                     </p>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <span className={cn("text-xs", !openRequesters && "text-muted-foreground")}>Restricted</span>
-                    <Switch checked={openRequesters} onCheckedChange={setOpenRequesters} />
-                    <span className={cn("text-xs", openRequesters && "font-medium")}>Open</span>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button
+                      type="button"
+                      variant={openRequesters ? "default" : "outline"}
+                      className="justify-center"
+                      onClick={() => setOpenRequesters(true)}
+                    >
+                      Open Access
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={!openRequesters ? "default" : "outline"}
+                      className="justify-center"
+                      onClick={() => setOpenRequesters(false)}
+                    >
+                      Restricted Access
+                    </Button>
                   </div>
                 </div>
 
@@ -771,42 +788,18 @@ export default function NewDatasetPage() {
                     <AccordionItem 
                       key={section.id} 
                       value={section.id}
-                      className={cn(
-                        "border rounded-xl bg-background/50 overflow-hidden transition-all duration-200",
-                        enabledManifestSections.includes(section.id) 
-                          ? "border-foreground/30 shadow-sm ring-1 ring-foreground/5" 
-                          : "border-border/60 hover:border-foreground/20"
-                      )}
+                      className="rounded-xl border border-border/60 bg-background/50 overflow-hidden transition-all duration-200 hover:border-foreground/20 data-[state=open]:border-foreground/30 data-[state=open]:shadow-sm data-[state=open]:ring-1 data-[state=open]:ring-foreground/5"
                     >
-                      <AccordionTrigger className="hover:no-underline px-5 py-4 w-full">
-                        <div className="flex flex-1 items-center justify-between pr-4 w-full">
-                          <div className="flex flex-col items-start text-left gap-1 pr-4">
+                      <AccordionTrigger className="w-full items-center px-5 py-4 hover:no-underline">
+                          <div className="flex flex-col items-start text-left gap-1">
                             <span className="text-sm font-semibold">{section.label}</span>
                             <span className="text-xs text-muted-foreground font-normal">{section.placeholder}</span>
                           </div>
-                          <div className="flex items-center shrink-0 mr-2" onClick={e => e.stopPropagation()}>
-                            <Switch 
-                              checked={enabledManifestSections.includes(section.id)} 
-                              onCheckedChange={(checked) => {
-                                if (checked) {
-                                  setEnabledManifestSections(prev => [...prev, section.id]);
-                                } else {
-                                  setEnabledManifestSections(prev => prev.filter(id => id !== section.id));
-                                  setOptionalManifestValues(prev => ({ ...prev, [section.id]: "" }));
-                                }
-                              }}
-                            />
-                          </div>
-                        </div>
                       </AccordionTrigger>
-                      <AccordionContent className="px-5 pb-5 pt-1">
+                      <AccordionContent className="px-5 pb-5 pt-0">
                         <Textarea 
                           placeholder={`Enter details for ${section.label.toLowerCase()}...`}
-                          className={cn(
-                            "min-h-32 bg-background border-input resize-none text-sm p-4 transition-all focus-visible:ring-1",
-                            !enabledManifestSections.includes(section.id) && "opacity-50 cursor-not-allowed bg-muted/50"
-                          )}
-                          disabled={!enabledManifestSections.includes(section.id)}
+                          className="min-h-32 bg-background border-input resize-none p-4 text-sm transition-all focus-visible:ring-1"
                           value={optionalManifestValues[section.id]}
                           onChange={(e) => setOptionalManifestValues(prev => ({ ...prev, [section.id]: e.target.value }))}
                         />
