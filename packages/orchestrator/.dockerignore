@@ -1,0 +1,6 @@
+.env
+node_modules
+dist
+scratch-check.ts
+scratch-check.js
+drizzle.config.ts
