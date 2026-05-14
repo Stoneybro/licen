@@ -215,8 +215,12 @@ export default function RequestAccessPage() {
       console.log("Transaction sent:", txHash);
       setSubmissionStep("Waiting for escrow confirmation...");
       setSubmissionProgress(90);
-      await waitForTx(txHash);
-      await fetchOnChainData();
+      try {
+        await waitForTx(txHash);
+        await fetchOnChainData();
+      } catch (waitErr) {
+        console.warn("Transaction sent but receipt timed out. Proceeding.", waitErr);
+      }
 
       setSubmissionProgress(100);
       setSuccess(true);

@@ -30,15 +30,9 @@ export async function GET(
       return Response.json(errorBody, { status: 404 });
     }
 
-    // If it's a pending hash, we consider it "accepted" because the manifest is saved
+    // If it's a pending hash, it's still waiting for the user to sign the transaction
     if (status.txHash === PENDING_TX_HASH) {
-      const acceptedStatus: PublishStatusResponse = {
-        ...status,
-        status: "accepted",
-        lastUpdatedAt: new Date().toISOString(),
-      };
-      await updatePublishRequestStatus(requestId, acceptedStatus);
-      return Response.json(acceptedStatus, { status: 200 });
+      return Response.json({ ...status, status: "queued" }, { status: 200 });
     }
 
     if (!status.txHash) {

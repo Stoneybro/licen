@@ -487,8 +487,8 @@ export default function NewDatasetPage() {
         }
       }
 
-      setStatus(submitData.status);
-      setPublishProgress(100);
+      setPublishingStep("Waiting for on-chain confirmation...");
+      setPublishProgress(95);
 
     } catch (err: unknown) {
       console.error(err);
@@ -512,15 +512,6 @@ export default function NewDatasetPage() {
           <ChevronLeft className="size-3" />
           Back to My Datasets
         </Link>
-        
-        {publishing && (
-          <div className="flex items-center gap-3 flex-1 max-w-xs ml-4">
-            <span className="text-[10px] uppercase tracking-wider font-semibold text-muted-foreground whitespace-nowrap">
-              {publishingStep}
-            </span>
-            <Progress value={publishProgress} className="h-1" />
-          </div>
-        )}
       </div>
 
       <div className="flex-1 p-4 md:p-8 flex justify-center">
@@ -557,6 +548,15 @@ export default function NewDatasetPage() {
               </nav>
 
               <div className="pt-4">
+                {publishing && (
+                  <div className="mb-4 space-y-2">
+                    <div className="flex justify-between items-center text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                      <span>{publishingStep}</span>
+                      <span>{publishProgress}%</span>
+                    </div>
+                    <Progress value={publishProgress} className="h-1.5" />
+                  </div>
+                )}
                 <Button 
                   className="w-full h-12 text-sm font-semibold tracking-wide shadow-lg group relative overflow-hidden"
                   onClick={handlePublish}
@@ -850,6 +850,15 @@ export default function NewDatasetPage() {
 
             {/* Mobile Publish Button */}
             <div className="md:hidden pt-8">
+              {publishing && (
+                <div className="mb-4 space-y-2">
+                  <div className="flex justify-between items-center text-[10px] uppercase tracking-wider font-semibold text-muted-foreground">
+                    <span>{publishingStep}</span>
+                    <span>{publishProgress}%</span>
+                  </div>
+                  <Progress value={publishProgress} className="h-1.5" />
+                </div>
+              )}
               <Button 
                 className="w-full h-12 text-sm font-bold shadow-lg"
                 onClick={handlePublish}
