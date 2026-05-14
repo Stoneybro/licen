@@ -26,6 +26,7 @@ import { useRouter } from "next/navigation";
 
 import {
   PUBLISH_PURPOSES,
+  PENDING_TX_HASH,
   type PublishPurpose,
   type PublishManifestUploadResponse,
   type PublishStatusResponse,
@@ -444,7 +445,7 @@ export default function NewDatasetPage() {
       });
 
       // 1. Submit payload to backend first to prevent orphaned on-chain datasets if backend fails
-      submitPayload.txHash = "0x0000000000000000000000000000000000000000000000000000000000000000";
+      submitPayload.txHash = PENDING_TX_HASH;
       setPublishProgress(75);
       setPublishingStep("Saving manifest to backend...");
 
@@ -468,8 +469,13 @@ export default function NewDatasetPage() {
           params: [{ from: normalizedOwnerAddress, to: getDataPolicyAddress(), data: calldata }],
         })) as Hex;
         
-        // Optionally update txHash on backend here if we had an endpoint, 
-        // but it's not strictly necessary as indexer will pick up the true hash.
+        // Update the backend with the real hash so it can track it properly later
+        fetch("/api/publish/update-tx", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ requestId: submitData.requestId, txHash }),
+        }).catch(e => console.error("Failed to update txHash in background:", e));
+
       } catch (err: unknown) {
         const errorObj = err as Record<string, unknown>;
         const msg = typeof errorObj?.message === "string" ? errorObj.message : String(err);

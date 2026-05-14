@@ -1,5 +1,9 @@
 import type { NextRequest } from "next/server";
-import type { ApiErrorResponse, PublishStatusResponse } from "@/lib/publish/contracts";
+import {
+  PENDING_TX_HASH,
+  type ApiErrorResponse,
+  type PublishStatusResponse,
+} from "@/lib/publish/contracts";
 import { getOgPublicClient } from "@/lib/publish/onchain";
 import { getPublishRequestStatus, updatePublishRequestStatus } from "@/lib/publish/store";
 
@@ -24,6 +28,17 @@ export async function GET(
       };
 
       return Response.json(errorBody, { status: 404 });
+    }
+
+    // If it's a pending hash, we consider it "accepted" because the manifest is saved
+    if (status.txHash === PENDING_TX_HASH) {
+      const acceptedStatus: PublishStatusResponse = {
+        ...status,
+        status: "accepted",
+        lastUpdatedAt: new Date().toISOString(),
+      };
+      await updatePublishRequestStatus(requestId, acceptedStatus);
+      return Response.json(acceptedStatus, { status: 200 });
     }
 
     if (!status.txHash) {
