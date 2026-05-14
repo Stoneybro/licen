@@ -10,6 +10,7 @@ import { Separator } from "@/components/ui/separator";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { usePrivy } from "@privy-io/react-auth";
+import { formatEther } from "viem";
 
 export default function DatasetsPage() {
   const { user } = usePrivy();
@@ -38,7 +39,7 @@ export default function DatasetsPage() {
           maxRunsPerRequester: d.policy?.maxRunsPerRequester ?? 0,
           openRequesters: d.policy?.openRequesters ?? false,
           requireResultAttestation: false,
-          lifetimeRoyalties: `${Number(d.stats?.lifetimeRoyalties ?? 0) / 1_000_000_000_000_000_000}`,
+          lifetimeRoyalties: formatEther(BigInt(d.stats?.lifetimeRoyalties ?? 0)),
           jobCount: d.stats?.jobCount ?? 0,
           activeJobCount: d.stats?.activeJobCount ?? 0,
           policyExpiry:

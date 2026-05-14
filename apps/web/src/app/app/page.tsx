@@ -10,6 +10,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { AppTopbar } from "@/components/app/app-topbar";
 import { HashChip } from "@/components/app/hash-chip";
 import { usePrivy } from "@privy-io/react-auth";
+import { formatEther } from "viem";
 
 export default function PublisherDashboard() {
   const { user } = usePrivy();
@@ -34,7 +35,7 @@ export default function PublisherDashboard() {
           active: d.active,
           label: d.title,
           royaltyPerEpoch: d.policy?.royaltyPerEpoch ?? 0,
-          lifetimeRoyalties: `${Number(d.stats?.lifetimeRoyalties ?? 0) / 1_000_000_000_000_000_000}`,
+          lifetimeRoyalties: formatEther(BigInt(d.stats?.lifetimeRoyalties ?? 0)),
           jobCount: d.stats?.jobCount ?? 0,
           activeJobCount: d.stats?.activeJobCount ?? 0,
         }));

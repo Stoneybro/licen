@@ -20,7 +20,7 @@ The old contract address is not compatible with the native-0G flow.
 Run from `packages/contracts`:
 
 ```bash
-BACKEND_WALLET_ADDRESS=<backend_wallet_address> \
+BACKEND_WALLET_ADDRESS=0x0D96081998fd583334fd1757645B40fdD989B267 \
 forge script script/DeployDataPolicy.s.sol:DeployDataPolicy \
   --rpc-url "$OG_EVM_RPC_URL" \
   --broadcast
