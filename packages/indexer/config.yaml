@@ -10,10 +10,10 @@ networks:
   - id: 16602
     rpc_config:
       url: https://evmrpc-testnet.0g.ai
-    start_block: 0
+    start_block: 33205007
     contracts:
       - name: DataPolicy
-        address: "0x6Fe8B5E16df9E0Aaf5E3dDf0E39BFA66dA25bD0b"
+        address: "0x565ab137D5D18B7Aa32783C7D1a8dc29d83687E7"
         handler: src/EventHandlers.ts
         events:
           - event: DatasetRegistered(bytes32 indexed datasetRoot, address indexed owner, bytes32 manifestHash)
