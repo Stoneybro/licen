@@ -111,17 +111,20 @@ export async function POST(request: NextRequest) {
       const manifest = payload?.manifestSummary ?? (payload?.manifestUri ? await downloadManifestFromOgStorage(payload.manifestUri) : null);
       const policy = payload?.policy;
 
+      // Filter out ghost datasets that don't have manifests
+      if (!manifest) {
+        return null;
+      }
+
       return {
         datasetRoot: dataset.id,
         owner: dataset.owner,
         manifestHash: dataset.manifestHash,
         manifestUri: payload?.manifestUri ?? null,
         active: dataset.active,
-        createdAt: manifest?.createdAt ?? null,
-        title: manifest?.title ?? `Dataset ${dataset.id.slice(0, 10)}`,
-        description:
-          manifest?.description ??
-          "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
+        createdAt: manifest.createdAt,
+        title: manifest.title,
+        description: manifest.description,
         policy: policy
           ? {
               royaltyPerEpoch: policy.royaltyPerEpoch,
@@ -139,7 +142,7 @@ export async function POST(request: NextRequest) {
           activeJobCount,
         },
       };
-    }));
+    })).then(results => results.filter(Boolean));
 
     return Response.json({ datasets: summaries });
   } catch (error) {
