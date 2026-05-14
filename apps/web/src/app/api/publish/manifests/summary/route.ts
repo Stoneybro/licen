@@ -7,6 +7,12 @@ type SummaryRecord = {
   description: string | null;
   createdAt: string | null;
   manifestUri: string | null;
+  legalText?: string | null;
+  usageTaxonomy?: string | null;
+  taskConstraints?: string | null;
+  complianceNotes?: string | null;
+  attribution?: string | null;
+  derivativeRights?: string | null;
 };
 
 export async function POST(request: NextRequest) {
@@ -38,6 +44,12 @@ export async function POST(request: NextRequest) {
               description: manifest.description ?? null,
               createdAt: manifest.createdAt ?? null,
               manifestUri: payload.manifestUri,
+              legalText: manifest.legalText ?? null,
+              usageTaxonomy: manifest.usageTaxonomy ?? null,
+              taskConstraints: manifest.taskConstraints ?? null,
+              complianceNotes: manifest.complianceNotes ?? null,
+              attribution: manifest.attribution ?? null,
+              derivativeRights: manifest.derivativeRights ?? null,
             } satisfies SummaryRecord,
           ] as const;
         } catch (error) {

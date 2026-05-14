@@ -76,12 +76,18 @@ export default function DatasetDetailPage() {
           return;
         }
 
-        // 2. Hydrate Policy from On-chain
+        // 2. Load manifest from local summary API (FAST)
+        const summaryRes = await fetch("/api/publish/manifests/summary", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ datasetRoots: [d.id] }),
+        });
+        const summaryJson = summaryRes.ok ? await summaryRes.json() : { manifests: {} };
+        const manifest = summaryJson.manifests?.[d.id.toLowerCase()] ?? null;
+
+        // 3. Hydrate Policy from On-chain
         const publicClient = getOgPublicClient();
         const policyAddress = getDataPolicyAddress();
-        const manifestRes = await fetch(`/api/publish/manifest/${d.id}`);
-        const manifestJson = manifestRes.ok ? await manifestRes.json() : null;
-        const manifest = manifestJson?.manifest ?? null;
         const policy: any = await publicClient.readContract({
           address: policyAddress,
           abi: DATA_POLICY_ABI,
@@ -96,7 +102,7 @@ export default function DatasetDetailPage() {
         setDataset({
           datasetRoot: d.id,
           manifestHash: d.manifestHash,
-          manifestUri: manifestJson?.manifestUri ?? null,
+          manifestUri: manifest?.manifestUri ?? null,
           active: d.active,
           label: manifest?.title || `Secure Dataset ${d.id.slice(2, 6).toUpperCase()}`,
           description: manifest?.description || "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",

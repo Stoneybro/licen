@@ -1,6 +1,7 @@
 import type { NextRequest } from "next/server";
 import { envioFetch } from "@/lib/envio";
 import { getPublishPayloadsByDatasetRoots } from "@/lib/publish/store";
+import { downloadManifestFromOgStorage } from "@/lib/publish/storage";
 
 type DatasetRow = {
   id: string;
@@ -89,11 +90,9 @@ export async function POST(request: NextRequest) {
       return acc;
     }, {});
 
-    const summaries = datasets.map((dataset) => {
+    const summaries = await Promise.all(datasets.map(async (dataset) => {
       const root = dataset.id.toLowerCase();
       const payload = payloadsByRoot[root];
-      const manifestSummary = payload?.manifestSummary;
-      const policy = payload?.policy;
       const datasetJobs = jobsByRoot[root] ?? [];
       const lifetimeRoyalties = datasetJobs.reduce((acc, job) => {
         return acc + Number(job.royaltySettled ?? "0");
@@ -102,16 +101,20 @@ export async function POST(request: NextRequest) {
         ["Requested", "Granted", "Dispatching", "Running"].includes(job.state)
       ).length;
 
+      // Use local summary if available, otherwise fallback to OG Storage (slow but correct for old records)
+      const manifest = payload?.manifestSummary ?? (payload?.manifestUri ? await downloadManifestFromOgStorage(payload.manifestUri) : null);
+      const policy = payload?.policy;
+
       return {
         datasetRoot: dataset.id,
         owner: dataset.owner,
         manifestHash: dataset.manifestHash,
         manifestUri: payload?.manifestUri ?? null,
         active: dataset.active,
-        createdAt: manifestSummary?.createdAt ?? null,
-        title: manifestSummary?.title ?? `Dataset ${dataset.id.slice(0, 10)}`,
+        createdAt: manifest?.createdAt ?? null,
+        title: manifest?.title ?? `Dataset ${dataset.id.slice(0, 10)}`,
         description:
-          manifestSummary?.description ??
+          manifest?.description ??
           "Encrypted data blob verified via 0G Storage with hardware TEE access enforcement.",
         policy: policy
           ? {
@@ -130,7 +133,7 @@ export async function POST(request: NextRequest) {
           activeJobCount,
         },
       };
-    });
+    }));
 
     return Response.json({ datasets: summaries });
   } catch (error) {
