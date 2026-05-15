@@ -33,6 +33,8 @@ LICEN's on-chain logic lives in a single contract: **`DataPolicy.sol`**, deploye
 
 ### The Policy Struct
 
+This struct is the owner's enforceable usage policy. Purpose restrictions are only one field inside a larger control model that also governs pricing, volume, repeat access, and session lifetime.
+
 ```solidity
 struct Policy {
     bytes32 datasetRoot;        // Merkle root of encrypted dataset on 0G Storage
@@ -95,6 +97,8 @@ function requestAccess(
 ) external payable;
 // msg.value must equal royaltyPerEpoch * requestedEpochs
 ```
+
+At request time, the contract checks the researcher's requested access against the owner's policy envelope: price, requested epochs, repeat-request caps, access duration, expiry, and allowed purpose IDs.
 
 ### Orchestrator (backendWallet only)
 

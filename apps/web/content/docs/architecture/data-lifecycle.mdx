@@ -21,7 +21,7 @@ Five phases. No single point of trust. Here's every step a dataset takes from up
 6. Policy manifest JSON uploaded to 0G Storage → `manifestHash` returned
 7. Publisher signs a transaction calling `registerDataset(datasetRoot, manifestHash, policyParams)` on the **DataPolicy contract**
 
-**State after phase:** Dataset is on-chain. Policy is enforced. Plaintext has never touched LICEN's servers.
+**State after phase:** Dataset is on-chain. The owner's full usage policy is enforced. Plaintext has never touched LICEN's servers.
 
 ---
 
@@ -44,7 +44,7 @@ Five phases. No single point of trust. Here's every step a dataset takes from up
 1. Researcher selects dataset, configures epoch count
 2. UI calculates `escrow = royaltyPerEpoch × requestedEpochs`
 3. Researcher signs `requestAccess(datasetRoot, purposeId, epochs)` — escrow is locked
-4. DataPolicy contract validates against policy (epoch caps, session TTL, allowed purposes)
+4. DataPolicy contract validates against the owner's usage policy (epoch caps, requester caps, session TTL, expiry, allowed purposes)
 5. Contract emits `AccessGranted(jobId, datasetRoot, requester, epochs)`
 6. Envio indexes the event
 

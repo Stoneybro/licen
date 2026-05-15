@@ -16,8 +16,8 @@ Dataset Owner                             AI Researcher
 Encrypts dataset locally                        │
      │                                          │
      ▼                                          │
-Sets policy (price/epoch,                       │
-max epochs, allowed uses)                       │
+Sets policy (pricing, run caps,                 │
+session rules, allowed uses)                    │
      │                                          │
      ▼                                          │
 Publishes to 0G Storage ──────────────────► Browses marketplace
@@ -61,12 +61,13 @@ The encrypted blob and the sealed key envelope are uploaded to **0G Storage**. A
 
 > Your plaintext data never touches LICEN's servers. The encryption happens in your browser before the upload begins.
 
-The owner then sets their policy:
+The owner then sets their policy. This policy is the dataset owner's control surface, not just a pricing form and not just a purpose tag. It defines the conditions under which the dataset may be used:
 - **Price per epoch** — how much a researcher pays per training pass
-- **Max epochs per run** — caps how much a single researcher can extract
+- **Max epochs per run** — caps how much a single researcher can extract in one session
 - **Max runs per requester** — lifetime cap per wallet
-- **Session TTL** — how long an access grant is valid
-- **Allowed purposes** — fine-tune for medical research only, exclude commercial use, etc.
+- **Session TTL** — how long an access grant is valid once approved
+- **Allowed purposes** — the permitted use case, such as medical research only or non-commercial fine-tuning
+- **Policy expiry** — when the dataset stops accepting new access requests
 
 A single on-chain transaction anchors the `datasetRoot`, the policy hash, and the pricing rules to the **DataPolicy smart contract** on 0G Chain.
 

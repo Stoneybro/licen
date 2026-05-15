@@ -18,7 +18,7 @@ LICEN is not a single application. It is five services that pass encrypted data 
                          ▼
 ┌─────────────────────────────────────────────────────────┐
 │                   DataPolicy Contract                    │
-│        (0G Chain · Policy registry · Escrow · Settlement)│
+│   (0G Chain · Usage-policy registry · Escrow · Settlement)│
 └────────────────────────┬────────────────────────────────┘
                          │ AccessGranted events
                          ▼
@@ -70,7 +70,7 @@ Built with **Next.js** and deployed on Vercel.
 **Key state stored on-chain:**
 - `datasetRoot` (bytes32) — Merkle root of the encrypted dataset
 - `manifestHash` (bytes32) — hash of the off-chain policy JSON
-- `royaltyPerEpoch`, `maxEpochsPerRun`, `maxRunsPerRequester`, `accessTtlSeconds` — enforced at transaction time
+- `royaltyPerEpoch`, `maxEpochsPerRun`, `maxRunsPerRequester`, `accessTtlSeconds`, `policyExpiry`, `allowedPurposeIds` — enforced at transaction time as the owner's usage policy
 - Per-job state machine: `None → Requested → Granted → Running → Completed / Failed / Refunded`
 
 **Key functions:**

@@ -7,7 +7,7 @@ description: Find licensed training data, pay per epoch, and receive your fine-t
 
 LICEN abstracts away everything you don't want to deal with: legal licensing, data procurement, storage downloads, GPU setup, and key management.
 
-You find data you want. You pay for the compute you need. You get a fine-tuned model.
+You find data you want. You review the publisher's usage policy. You pay for the compute you need. You get a fine-tuned model.
 
 ## Before You Start
 
@@ -25,12 +25,14 @@ Go to the **Marketplace**. Every listed dataset is a live on-chain entry — the
 
 Each dataset card shows:
 - **Title and description** — what the dataset contains and what it's good for
+- **Access policy** — the usage boundary the publisher has defined for this dataset
 - **Allowed purposes** — what the publisher has permitted (e.g. medical research only, no commercial use)
 - **Price per epoch** — the cost in 0G tokens per training pass
 - **Max epochs per run** — the cap the publisher has set for a single session
+- **Max runs per requester** — whether repeat access is limited at the wallet level
 - **Session TTL** — how long your access grant remains valid once approved
 
-Filter by purpose, price, or availability. Click any dataset to see its full policy.
+Filter by purpose, price, or availability. Click any dataset to see its full policy. Purpose is only one part of that policy; the full policy also determines the allowed volume, duration, and repeatability of access.
 
 ---
 
@@ -48,7 +50,7 @@ Total escrow = price per epoch × requested epochs
 
 4. Click **Submit** and approve the transaction in your wallet
 
-That's it. The smart contract locks your escrow, validates your request against the publisher's policy, and triggers the training pipeline automatically.
+That's it. The smart contract locks your escrow, validates your request against the publisher's full usage policy, and triggers the training pipeline automatically.
 
 ---
 

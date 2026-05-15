@@ -7,7 +7,7 @@ description: Publish your dataset once, define the rules, and earn royalties aut
 
 LICEN gives you back what the current ecosystem takes away: **control and compensation**.
 
-When you publish a dataset through LICEN, you define exactly who can use it, what they can use it for, and how much they pay. Those rules are enforced by a smart contract — not by a terms-of-service PDF that nobody reads.
+When you publish a dataset through LICEN, you define an enforceable usage policy for that dataset. That policy controls who can use it, how much usage is allowed, how long access lasts, how often the same buyer can return, what they can use it for, and how much they pay. Those rules are enforced by a smart contract — not by a terms-of-service PDF that nobody reads.
 
 ## Before You Start
 
@@ -46,7 +46,7 @@ Select your JSONL file. As soon as you select it, **encryption begins in your br
 
 ### 4. Set your policy
 
-This is where you define the rules of the game:
+This is where you define the rules of the game. Purpose is only one field. The real product value is that you control the full access policy for your dataset:
 
 | Setting | What it controls |
 |---|---|
@@ -56,6 +56,8 @@ This is where you define the rules of the game:
 | **Session duration** | How long an approved session stays valid |
 | **Allowed purposes** | Which use cases are permitted (medical research, code generation, etc.) |
 | **Policy expiry** | When the dataset stops accepting new access requests |
+
+Together, these settings determine the exact boundary of how your dataset may be used inside LICEN. Researchers cannot request access outside those limits because the contract enforces them at request time.
 
 ### 5. Publish
 

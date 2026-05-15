@@ -10,7 +10,7 @@
 
 <br/>
 
-**LICEN lets owners publish encrypted datasets, define how they can be used, and earn royalties whenever approved researchers use the data for AI model training.**
+**LICEN lets owners publish encrypted datasets, define enforceable usage policies around how access is granted, and earn royalties whenever approved researchers use the data for AI model training.**
 
 ---
 
@@ -34,7 +34,7 @@ LICEN is an end-to-end decentralized protocol. It ensures that data owners retai
 A data creator (like a doctor with a medical dataset) uploads their file to LICEN. Before the file even leaves their computer, it is completely encrypted. Our servers never see the raw data, preventing any accidental leaks or scraping.
 
 **2. The Creator Sets the Rules**
-The creator decides the terms: *What purposes are allowed? How much does it cost per training run?* These rules are written into a smart contract on the blockchain. Once set, they cannot be broken, bypassed, or negotiated around by anyone.
+The creator defines an on-chain usage policy for the dataset: *who can access it, how long access lasts, how much training can happen per run, how often a researcher can come back, what it costs, and which purposes are allowed*. Once set, these rules are written into a smart contract and cannot be broken, bypassed, or negotiated around by anyone.
 
 **3. The AI Researcher Pays for Access**
 An AI researcher looking for medical data browses the LICEN marketplace. They find the dataset, see the price, and pay upfront for the exact amount of training they want to do. The smart contract locks this money safely in escrow.
@@ -53,7 +53,8 @@ Dataset Owner                          AI Researcher
      │                                       │
      ▼                                       │
 Encrypts dataset in browser                  │
-Sets policy (price/epoch, caps, purposes)    │
+Sets policy (pricing, access caps,            │
+session limits, allowed purposes)            │
 Publishes to 0G Storage                      │
 Anchors policy on-chain ──────────────► Browses marketplace
                                              │
@@ -106,6 +107,19 @@ We've built a complete, end-to-end pipeline for the hackathon.
 - [x] **Orchestrator Worker:** Automated key unsealing, 0G Compute dispatch, and job state tracking.
 - [x] **0G Compute Pipeline:** Full 10-state lifecycle from dispatch to settlement.
 - [x] **Publisher & Researcher Dashboards:** Real-time royalty tracking, active sessions, and dataset browsing.
+- [x] **Owner-Controlled Dataset Policies:** Dataset owners can define pricing, run caps, requester caps, session duration, expiry, and allowed purposes as enforceable access controls.
+
+---
+
+## 💼 Business Model Summary
+
+LICEN is a two-sided marketplace connecting dataset owners with AI teams that need high-quality, specialized training data.
+
+- **Customers:** On the supply side, LICEN targets academic labs, biomedical institutions, legal teams, and independent curators with valuable niche datasets. On the demand side, it serves AI startups, enterprise AI teams, and researchers who need compliant access to premium data.
+- **Core value:** Creators keep control of their encrypted data by defining enforceable usage policies on-chain, then receive automatic royalties when researchers operate within those rules. Researchers get faster legal access to specialized data, transparent provenance, and a managed training flow without handling raw infrastructure.
+- **Revenue model:** LICEN takes a **2% to 5% protocol fee** on each royalty settlement. Dataset owners pay nothing upfront, and compute/network costs are passed through transparently to buyers.
+- **Distribution:** Initial go-to-market focuses on direct outreach to high-value dataset creators, academic partnerships, and manual early curation to build trust and marketplace quality.
+- **Expansion path:** Beyond marketplace fees, LICEN can grow into a white-labeled enterprise offering for organizations that want to run the same secure training pipeline on sensitive internal data.
 
 ### 🗺 Roadmap (Honest Limitations)
 - [ ] **On-chain TEE Quote Verification:** Currently storing the 0G task UUID as an attestation reference; upgrading to verify Intel TDX / AMD SEV-SNP quotes directly on-chain.
@@ -176,7 +190,7 @@ We assume the server is compromised. Our architecture reflects this:
 | Security Property | Enforcement Mechanism |
 | :--- | :--- |
 | **Datasets stay encrypted until payment** | The AES key is only unsealed by the Orchestrator *after* the on-chain `Granted` state is verified. |
-| **Policy cannot be bypassed** | The `DataPolicy` smart contract rejects any policy violations (epoch caps, invalid purposes) at the transaction level. |
+| **Policy cannot be bypassed** | The `DataPolicy` smart contract rejects requests that violate owner-defined controls like epoch caps, requester caps, session windows, expiry, and allowed purposes. |
 | **Royalties are guaranteed** | Settlement is executed via smart contract state transitions — absolutely no invoicing or trust required. |
 | **Zero-knowledge web backend** | Thanks to ECIES, even our own web servers and databases cannot decrypt the AES keys or access the plaintext data. |
 
