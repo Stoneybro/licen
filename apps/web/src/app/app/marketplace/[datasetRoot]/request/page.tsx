@@ -233,7 +233,31 @@ export default function RequestAccessPage() {
 
     } catch (err: any) {
       console.error(err);
-      setSubmissionError(err?.message || "Transaction failed or was cancelled.");
+      
+      const rawError = err?.message || String(err) || "";
+      let cleanError = "Transaction failed or was cancelled.";
+      
+      if (rawError.includes("Requester run limit reached")) {
+        cleanError = "You have reached the maximum number of allowed training runs for this dataset.";
+      } else if (rawError.includes("Policy is not active")) {
+        cleanError = "This dataset is currently paused and not accepting new training requests.";
+      } else if (rawError.includes("Policy expired")) {
+        cleanError = "The access policy for this dataset has expired.";
+      } else if (rawError.includes("Terms hash mismatch")) {
+        cleanError = "The dataset terms have changed. Please refresh the page.";
+      } else if (rawError.includes("Exceeds max epochs per run")) {
+        cleanError = "You requested more training epochs than the policy allows in a single run.";
+      } else if (rawError.includes("Purpose not allowed")) {
+        cleanError = "The selected research purpose is not authorized for this dataset.";
+      } else if (rawError.includes("Requester not allowed")) {
+        cleanError = "Your wallet address is not on the approved list of researchers for this dataset.";
+      } else if (rawError.includes("Incorrect escrow amount")) {
+        cleanError = "The transaction value did not match the required escrow amount.";
+      } else if (rawError.toLowerCase().includes("user rejected")) {
+        cleanError = "Transaction was cancelled in your wallet.";
+      }
+
+      setSubmissionError(cleanError);
       setSubmitting(false);
       setSubmissionStep(null);
       setSubmissionProgress(0);
