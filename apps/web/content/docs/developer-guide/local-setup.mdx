@@ -1,0 +1,65 @@
+---
+title: Local Setup
+description: How to run the LICEN monorepo on your local machine.
+---
+
+# Local Setup
+
+LICEN is built as a Turbo monorepo containing a Next.js web application, a Node.js orchestrator, smart contracts, and an Envio indexer.
+
+## Prerequisites
+
+*   **Node.js:** v20 or higher.
+*   **pnpm:** v9 or higher (`npm install -g pnpm`).
+*   **PostgreSQL:** A local instance or a cloud URL (like Neon).
+*   **Foundry:** For smart contract development (`curl -L https://foundry.paradigm.xyz | bash`).
+
+## 1. Clone the Repository
+
+```bash
+git clone https://github.com/your-username/licen.git
+cd licen
+pnpm install
+```
+
+## 2. Environment Variables
+
+Each application in the `apps` and `packages` directory requires a `.env` file. You can usually find a `.env.example` in each folder to guide you.
+
+The most critical variables across the stack are:
+*   `DATABASE_URL`: Your PostgreSQL connection string.
+*   `ORCHESTRATOR_API_SECRET`: A shared secret between the Web App and the Orchestrator.
+*   `ORCHESTRATOR_PRIVATE_KEY`: A `secp256k1` private key used to decrypt ECIES envelopes.
+*   `NEXT_PUBLIC_ORCHESTRATOR_PUBLIC_KEY`: The corresponding public key for the web app to encrypt envelopes.
+
+## 3. Database Setup
+
+The Web App and the Orchestrator both use Drizzle ORM to connect to the database.
+
+Ensure your `DATABASE_URL` is set, then run the migrations:
+```bash
+# Push schema for the Web App
+cd apps/web
+pnpm db:push
+
+# Push schema for the Orchestrator
+cd ../../packages/orchestrator
+pnpm db:push
+```
+
+## 4. Running the Development Server
+
+You can start the entire stack or individual components.
+
+To start the Next.js Web Application:
+```bash
+cd apps/web
+pnpm dev
+```
+The app will be available at `http://localhost:3000`.
+
+To start the Orchestrator (Optional - usually better to let the production orchestrator handle background tasks even when developing the UI locally):
+```bash
+cd packages/orchestrator
+pnpm dev
+```

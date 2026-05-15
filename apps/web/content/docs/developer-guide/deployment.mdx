@@ -1,0 +1,46 @@
+---
+title: Deployment
+description: How to host the LICEN stack in production.
+---
+
+# Deployment
+
+Deploying LICEN involves hosting three main components: The Web App, the Orchestrator, and the Indexer.
+
+## 1. Web Application (Vercel)
+
+The Next.js web application is optimized for deployment on Vercel.
+
+1.  Connect your GitHub repository to Vercel.
+2.  Select the `apps/web` framework preset.
+3.  Add all required Environment Variables (from your `.env.local`), especially `DATABASE_URL` and `ORCHESTRATOR_API_SECRET`.
+4.  Deploy. 
+
+*Note: Ensure your `DATABASE_URL` uses a connection pooler if available, as Serverless environments can exhaust database connections.*
+
+## 2. Orchestrator (Hugging Face Spaces)
+
+Because the Orchestrator is a background worker that relies on a continuous polling loop, Serverless platforms (like Vercel functions) are not suitable.
+
+We recommend deploying the Orchestrator as a Docker container on **Hugging Face Spaces**.
+
+### Setup on Hugging Face:
+1.  Create a New Space, select **Docker** as the SDK, and set the visibility to Public.
+2.  Upload the contents of `packages/orchestrator` (ensure the `Dockerfile` is at the root).
+3.  Add all required Secrets in the Space Settings (including `DATABASE_URL` and the three private keys).
+4.  Set `LICEN_WEB_API_URL` to your production Vercel URL.
+5.  **Keep-Alive:** Because free Spaces sleep after 48 hours, use a free service like [cron-job.org](https://cron-job.org/) to ping your Space's URL every 24 hours to keep the Orchestrator running permanently.
+
+## 3. Indexer (Envio Hosted Service)
+
+The Envio indexer should not be run manually in production. Use Envio's hosted infrastructure.
+
+1.  Authenticate with Envio CLI: `envio login`
+2.  Deploy the indexer: `envio deploy`
+3.  Once deployed, Envio will provide a GraphQL endpoint URL. Update the `ENVIO_GRAPHQL_URL` environment variable in both your Web App and Orchestrator to point to this new production URL.
+
+## 4. Database (Neon)
+
+Both the Web App and the Orchestrator share the same PostgreSQL database. We recommend [Neon](https://neon.tech/) for its serverless scaling and ease of use.
+*   Use the **Pooled** connection string for the Vercel Web App.
+*   Use the **Direct (Unpooled)** connection string for the long-running Orchestrator.

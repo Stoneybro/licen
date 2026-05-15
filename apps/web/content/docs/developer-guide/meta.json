@@ -1,0 +1,10 @@
+{
+  "title": "Developer Guide",
+  "pages": [
+    "local-setup",
+    "smart-contracts",
+    "indexer",
+    "orchestrator",
+    "deployment"
+  ]
+}

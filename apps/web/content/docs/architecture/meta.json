@@ -1,0 +1,8 @@
+{
+  "title": "Architecture & Protocol",
+  "pages": [
+    "system-overview",
+    "key-exchange",
+    "data-lifecycle"
+  ]
+}

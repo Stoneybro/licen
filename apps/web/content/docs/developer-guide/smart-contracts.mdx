@@ -1,0 +1,63 @@
+---
+title: Smart Contracts
+description: Understanding DataPolicy.sol and 0G Testnet deployment.
+---
+
+# Smart Contracts
+
+LICEN relies on a central smart contract, `DataPolicy.sol`, deployed on the 0G Testnet EVM. It handles dataset registration, pricing, and access control.
+
+## Contract Architecture
+
+The contract maintains a registry of datasets, keyed by their 0G Storage `rootHash`.
+
+### 1. Registering a Policy
+When a dataset provider publishes data, they call `registerPolicy()`.
+```solidity
+function registerPolicy(
+    string memory datasetRoot,
+    uint256 pricePerEpoch,
+    uint256 maxEpochs
+) external;
+```
+This stores the pricing rules and marks the caller as the `provider` (owner) of the dataset.
+
+### 2. Purchasing Access
+AI Researchers call `purchaseAccess()` to initiate a training job.
+```solidity
+function purchaseAccess(
+    string memory datasetRoot,
+    uint256 epochs
+) external payable;
+```
+*   The contract calculates `pricePerEpoch * epochs` and requires `msg.value` to match.
+*   The funds are immediately transferred to the `provider`.
+*   Crucially, it emits the `AccessGranted` event.
+
+### 3. The `AccessGranted` Event
+This event is the bridge between the blockchain and the off-chain Orchestrator.
+```solidity
+event AccessGranted(
+    bytes32 indexed jobId,
+    string datasetRoot,
+    address indexed buyer,
+    uint256 epochs
+);
+```
+The LICEN Indexer listens for this specific event to notify the Orchestrator that a new job has been paid for and is ready to process.
+
+## Development & Testing
+
+The contracts are built using **Foundry**.
+
+To run the test suite:
+```bash
+cd packages/contracts
+forge test
+```
+
+To deploy a new instance to the 0G Testnet:
+```bash
+source .env
+forge script script/DeployDataPolicy.s.sol --rpc-url $OG_EVM_RPC_URL --broadcast
+```

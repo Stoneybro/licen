@@ -1,0 +1,38 @@
+---
+title: Troubleshooting
+description: Common issues and how to fix them.
+---
+
+# Troubleshooting
+
+If you encounter issues while using or deploying LICEN, check the solutions below.
+
+## 1. Orchestrator Stuck on "Queue"
+If a job is stuck in the `Queue` state on the frontend dashboard, the Orchestrator has not picked it up.
+
+**Possible Causes:**
+*   **Missing Key Envelope:** Check the Orchestrator logs for `503 Service Unavailable`. This means the `ORCHESTRATOR_API_SECRET` in your Hugging Face Space does not match the secret in your Vercel deployment.
+*   **Indexer Syncing:** The Envio Indexer might be lagging behind the blockchain. Check the Envio dashboard to ensure it has synced up to the block containing your transaction.
+*   **Out of Gas:** The Orchestrator's `BACKEND_WALLET_PRIVATE_KEY` may have run out of 0G testnet tokens, preventing it from uploading data to 0G Storage.
+
+## 2. Invalid BytesLike Value Error
+If the Orchestrator logs show an error similar to `invalid BytesLike value (argument="value", value="0x...")` during the compute dispatch phase:
+
+**Solution:**
+Your `OG_COMPUTE_PRIVATE_KEY` is malformed. Ensure that the secret in Hugging Face is exactly 64 characters long (excluding the optional `0x` prefix). It is common to accidentally miss a character when copying the key from MetaMask.
+
+## 3. Storage Indexer 503 Errors
+Occasionally, the 0G Storage Testnet indexer becomes overloaded and returns `503 Service Temporarily Unavailable` when the Orchestrator tries to download a dataset.
+
+**Solution:**
+1. You can wait; the Orchestrator will automatically retry.
+2. Alternatively, you can override the default indexer by setting the `OG_INDEXER_RPC_URL` environment variable to the turbo endpoint: `https://indexer-storage-testnet-turbo.0g.ai`.
+
+## 4. No Compute Providers Available
+If the Orchestrator logs state `Error: No available 0G Compute fine-tuning providers found`, it means the 0G Compute testnet is temporarily devoid of active nodes.
+
+**Solution:**
+This is a testnet infrastructure issue. You must wait for the 0G Foundation or community node operators to bring GPU providers back online.
+
+## Need more help?
+Reach out on the project's GitHub repository or check the [0G Foundation Discord](https://discord.gg/0g) for infrastructure-specific outages.

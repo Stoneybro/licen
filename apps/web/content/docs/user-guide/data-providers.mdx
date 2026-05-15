@@ -1,0 +1,54 @@
+---
+title: For Data Providers
+description: How to format, encrypt, and publish your datasets securely.
+---
+
+# For Data Providers
+
+LICEN allows you to monetize your proprietary datasets without sacrificing security. By utilizing in-browser encryption and smart contracts, you maintain control over how your data is used and get paid directly.
+
+## 1. Preparing Your Data
+
+Currently, LICEN and the 0G Compute network support datasets formatted in **JSONL (JSON Lines)**.
+
+Each line in your file must be a valid JSON object representing a conversation or data point.
+
+**Example format:**
+```json
+{"messages": [{"role": "system", "content": "You are a coding assistant."}, {"role": "user", "content": "Write a Python script."}, {"role": "assistant", "content": "print('Hello World')"}]}
+{"messages": [{"role": "system", "content": "You are a coding assistant."}, {"role": "user", "content": "What is an array?"}, {"role": "assistant", "content": "An array is a data structure..."}]}
+```
+
+## 2. Publishing the Dataset
+
+1.  Connect your wallet to the LICEN web application.
+2.  Navigate to the **Publish** section.
+3.  Select your prepared `JSONL` file.
+
+### What happens under the hood?
+When you select the file, the LICEN app performs **client-side encryption**:
+*   A random 256-bit AES key is generated in your browser.
+*   The `JSONL` file is encrypted using AES-GCM.
+*   The AES key is then encrypted using the public key of the LICEN Orchestrator (creating the "Key Envelope").
+*   *Your plaintext data never leaves your computer.*
+
+## 3. Setting the Policy
+
+You control the pricing of your dataset:
+
+*   **Price per Epoch:** Set the cost (in 0G tokens) a researcher must pay for every epoch they wish to train their model using your data.
+*   **Max Epochs:** Optionally, restrict the maximum number of epochs a single researcher can run.
+
+## 4. Confirming the Transaction
+
+Once the file is encrypted, the app will prompt you to sign a transaction with your Web3 wallet.
+
+This transaction:
+1.  Uploads the **encrypted** dataset to 0G Storage.
+2.  Registers your pricing policy on the `DataPolicy` smart contract.
+
+## 5. Receiving Payments
+
+When a researcher decides to use your dataset, they interact with the smart contract and pay the required fee upfront. 
+
+These funds are instantly sent to your wallet address or held in the contract for you to claim, ensuring a trustless, peer-to-peer transaction.

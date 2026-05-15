@@ -1,0 +1,44 @@
+---
+title: The Indexer (Envio)
+description: Real-time blockchain indexing with Envio HyperIndex.
+---
+
+# The Indexer (Envio)
+
+Instead of the LICEN Orchestrator constantly querying the blockchain for new events, we use [Envio HyperIndex](https://envio.dev/) to build a real-time, queryable GraphQL API.
+
+## Why an Indexer?
+Scanning the blockchain block-by-block is slow and computationally expensive. Envio processes blocks instantly and stores our custom `DataPolicy` events in a PostgreSQL database, exposing them via GraphQL.
+
+## Configuration
+
+The indexer is configured in two main files located in `packages/indexer/`:
+
+1.  **`config.yaml`**: Defines the network (0G Testnet), the smart contract address, and the specific events to listen for (e.g., `AccessGranted`).
+2.  **`schema.graphql`**: Defines the database schema. Every time an event is detected, it is mapped to an entity defined here.
+
+## Event Handlers
+
+The logic that maps raw blockchain events to GraphQL entities is written in TypeScript in `packages/indexer/src/EventHandlers.ts`.
+
+When an `AccessGranted` event is detected, the handler creates a new `Job` entity with a status of `Granted`.
+
+## The GraphQL API
+
+The Orchestrator polls the Envio GraphQL API using a simple query to find pending jobs:
+
+```graphql
+query GrantedJobs {
+  Job(where: { state: { _eq: "Granted" } }) {
+    id
+    datasetRoot
+    requestedEpochs
+  }
+}
+```
+
+## Hosting
+
+During local development, you can run the indexer using Docker (`pnpm dev` inside the indexer folder). 
+
+For production, the indexer is deployed to the **Envio Hosted Service**, providing a reliable, always-on GraphQL endpoint for the Orchestrator to query.

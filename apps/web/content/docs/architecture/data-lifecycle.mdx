@@ -1,0 +1,44 @@
+---
+title: Data Lifecycle
+description: The complete journey of a dataset from upload to model delivery.
+---
+
+# Data Lifecycle
+
+Understanding the step-by-step journey of a dataset clarifies how all the LICEN microservices interact in a production environment.
+
+## Phase 1: Ingestion (Publishing)
+
+1.  **Selection:** The Data Provider selects a `JSONL` file in the Web UI.
+2.  **Encryption:** The browser generates an AES key, encrypts the file, and then ECIES-encrypts the AES key using the Orchestrator's public key (creating the Envelope).
+3.  **Storage:** The encrypted file is uploaded to **0G Storage** via the 0G TS SDK. A `rootHash` is returned.
+4.  **Database:** The Web UI saves the Envelope and metadata to the PostgreSQL database, keyed by the `rootHash`.
+5.  **Smart Contract:** The user's wallet sends a transaction to `DataPolicy.sol`, registering the `rootHash` and pricing rules on the 0G Testnet.
+
+## Phase 2: Purchasing Access
+
+1.  **Discovery:** An AI Researcher views the dataset on the Marketplace.
+2.  **Payment:** The Researcher specifies the number of training epochs and submits a transaction to `DataPolicy.sol`, paying the required fee.
+3.  **Event Emission:** The smart contract validates the payment and emits an `AccessGranted(jobId, datasetRoot, buyer, epochs)` event.
+4.  **Indexing:** The **Envio Indexer** detects the event and updates its GraphQL graph.
+
+## Phase 3: Orchestration (The Background Worker)
+
+1.  **Polling:** The **LICEN Orchestrator** polls the Indexer every 5 seconds. It discovers the new `AccessGranted` job.
+2.  **Envelope Retrieval:** The Orchestrator queries the Web API to fetch the Envelope associated with the `datasetRoot`. (This requires the `ORCHESTRATOR_API_SECRET`).
+3.  **Decryption:** The Orchestrator decrypts the Envelope with its private key, revealing the AES key.
+4.  **Download:** It downloads the encrypted dataset from 0G Storage.
+5.  **Unsealing:** It decrypts the dataset in memory to its original plaintext `JSONL` format.
+
+## Phase 4: Compute Dispatch
+
+1.  **Re-upload:** Because 0G Compute providers currently require plaintext data, the Orchestrator uploads the plaintext `JSONL` back to 0G Storage, receiving a *new* `plaintextRootHash`.
+2.  **Dispatch:** The Orchestrator uses the 0G Compute SDK to send a `createTask` request to an available GPU provider, passing the `plaintextRootHash` and the requested epochs.
+3.  **State Update:** The Orchestrator saves the returned Compute `taskId` to its local database and calls `startJob()` on the smart contract.
+
+## Phase 5: Delivery
+
+1.  **Training:** The 0G Compute provider downloads the plaintext data, executes the fine-tuning on the specified model (e.g., Qwen2.5), and generates a LoRA adapter.
+2.  **Upload Result:** The provider uploads the trained model back to 0G Storage.
+3.  **Completion:** The Orchestrator polls the task status. When it sees `Completed`, it fetches the result hash.
+4.  **User Access:** The AI Researcher sees the job marked as "Completed" in their UI and can download the model using the provided result hash.

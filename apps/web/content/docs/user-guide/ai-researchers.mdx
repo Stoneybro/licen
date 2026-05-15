@@ -1,0 +1,51 @@
+---
+title: For AI Researchers
+description: How to browse datasets, purchase access, and fine-tune models.
+---
+
+# For AI Researchers
+
+LICEN abstracts away the complexity of managing decentralized infrastructure. You don't need to manually download encrypted files, figure out decryption keys, or set up GPU instances. You simply find the data you want, pay for compute, and receive the trained model.
+
+## 1. Browsing the Marketplace
+
+Navigate to the **Marketplace** in the LICEN web application. Here you will see a list of available datasets that have been published by data providers.
+
+Each dataset card displays:
+*   **Dataset Root Hash:** The unique identifier on 0G Storage.
+*   **Provider Address:** The wallet address of the data creator.
+*   **Price Per Epoch:** The cost (in 0G tokens) to train on this data for one epoch.
+*   **Max Epochs:** The maximum allowable training epochs for a single session.
+
+## 2. Requesting Compute
+
+When you find a dataset you want to use:
+
+1.  Click on the dataset to view its details.
+2.  In the training configuration panel, select the number of **Epochs** you wish to train for.
+3.  The UI will automatically calculate the total cost (`Price Per Epoch` * `Requested Epochs`).
+4.  Click **Start Fine-Tuning**.
+
+## 3. The Transaction
+
+Your Web3 wallet will prompt you to approve a transaction. This transaction interacts with the `DataPolicy` smart contract on the 0G Testnet.
+
+You are paying the exact amount calculated. The smart contract securely holds or transfers these funds to the data provider.
+
+## 4. Tracking Your Job
+
+Once the transaction is confirmed, navigate to your **Sessions** or **Dashboard** tab.
+
+You will see your job progress through several states:
+1.  **Queue:** The blockchain transaction was successful, and the LICEN Orchestrator is preparing to pick it up.
+2.  **Running:** The Orchestrator has decrypted the dataset and dispatched the fine-tuning task to a 0G Compute provider.
+3.  **Completed:** The GPU provider has finished training the model.
+4.  **Failed:** Something went wrong (e.g., no compute providers available, or an issue with the dataset format).
+
+## 5. Retrieving the Model
+
+When the job reaches the **Completed** state, the UI will provide you with a **Result Hash**.
+
+This hash represents your trained model (typically a LoRA adapter) which has been automatically uploaded back to 0G Storage by the compute provider.
+
+You can download this adapter and load it into your local or cloud-hosted base model (like Qwen2.5) for inference!

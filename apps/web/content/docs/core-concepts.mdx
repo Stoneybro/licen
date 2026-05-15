@@ -1,0 +1,38 @@
+---
+title: Core Concepts
+description: Understand the foundational technologies powering LICEN.
+---
+
+# Core Concepts
+
+LICEN relies on a combination of cutting-edge technologies to ensure data privacy, decentralized storage, and trustless computation. Here are the core concepts you need to know.
+
+## 0G Storage
+
+[0G Storage](https://0g.ai/) is a highly scalable, decentralized storage network. 
+
+*   **Permanent Availability:** Once data is uploaded to 0G Storage, it is guaranteed to be available, making it perfect for storing datasets and trained models.
+*   **Root Hashes:** Every file uploaded to 0G Storage is identified by a unique `rootHash`. This hash is a cryptographic proof of the file's contents and is used as the identifier throughout the LICEN ecosystem.
+
+## 0G Compute
+
+[0G Compute](https://0g.ai/) is a decentralized network of GPU providers offering AI computation services.
+
+*   **Verifiable Training:** Researchers can submit fine-tuning jobs (e.g., training a Qwen2.5 model) to the network. 
+*   **Seamless Integration:** The LICEN Orchestrator interfaces directly with the 0G Compute SDK, automatically funding sub-accounts and dispatching tasks to available providers.
+
+## ECIES Encryption
+
+To ensure that datasets remain private, LICEN uses **ECIES (Elliptic Curve Integrated Encryption Scheme)**.
+
+*   **In-Browser Security:** When a provider uploads a dataset, the LICEN web app generates a random AES symmetric key. The dataset is encrypted with this AES key directly in the browser.
+*   **The Key Envelope:** The AES key itself is then encrypted using the public key of the LICEN Orchestrator. This creates an "Encrypted Key Envelope."
+*   **Zero-Knowledge Backend:** The encrypted dataset is uploaded to 0G Storage. Only the Orchestrator, which holds the corresponding private key, can open the envelope, extract the AES key, and decrypt the dataset for the compute provider.
+
+## The DataPolicy Smart Contract
+
+The `DataPolicy.sol` smart contract is the source of truth for access control and payments.
+
+*   **Registration:** When a dataset is published, a policy is created on-chain, storing the dataset's `rootHash` and pricing rules.
+*   **Purchasing Access:** Researchers interact with this contract to purchase access. The contract handles the financial transaction, securely transferring funds to the provider.
+*   **Emitting Events:** Once payment is confirmed, the contract emits an `AccessGranted` event. The LICEN indexer listens for this event to trigger the off-chain Orchestrator workflow.

@@ -1,4 +1,11 @@
 {
-  "title": "LICEN Docs",
-  "pages": ["index", "quickstart", "protocol-overview", "architecture"]
+  "pages": [
+    "index",
+    "quickstart",
+    "core-concepts",
+    "user-guide",
+    "architecture",
+    "developer-guide",
+    "resources"
+  ]
 }

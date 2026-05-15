@@ -1,0 +1,46 @@
+---
+title: Key Exchange Protocol
+description: How LICEN securely transfers decryption keys using ECIES.
+---
+
+# The Key Exchange Protocol
+
+The most critical security challenge in LICEN is getting the decryption key from the Dataset Provider's browser to the Backend Orchestrator without ever exposing it to the public or storing it in plaintext.
+
+We solve this using a combination of **AES (Symmetric)** and **ECIES (Asymmetric)** encryption.
+
+## The Challenge
+*   **Large Files:** Datasets are too large to be encrypted using public-key cryptography (like RSA or ECIES) directly.
+*   **Symmetric Need:** They must be encrypted with a fast symmetric algorithm like AES.
+*   **Key Distribution:** The AES key must be securely transmitted to the Orchestrator so it can decrypt the file later.
+
+## Step-by-Step Flow
+
+### 1. Orchestrator Key Generation (Setup)
+When the LICEN Orchestrator is deployed, it generates a standard `secp256k1` keypair. 
+*   **Private Key:** Kept secret within the Orchestrator's environment variables (`ORCHESTRATOR_PRIVATE_KEY`).
+*   **Public Key:** Hardcoded into the Next.js Web App environment.
+
+### 2. Client-Side Encryption (Browser)
+When a Data Provider selects a `JSONL` file to publish:
+1.  The browser generates a strong, random 256-bit **AES Key**.
+2.  The `JSONL` dataset is encrypted using this AES key (AES-GCM mode).
+3.  The resulting encrypted blob is uploaded to **0G Storage**.
+
+### 3. The Envelope (Browser)
+Before the browser forgets the AES key:
+1.  It takes the **AES Key**.
+2.  It encrypts the AES Key using the **Orchestrator's Public Key** via ECIES (Elliptic Curve Integrated Encryption Scheme).
+3.  This creates the **Encrypted Key Envelope**.
+4.  This envelope is saved to the Web App's database via an API call when the user submits the publish transaction.
+
+### 4. Unsealing (Orchestrator)
+When an AI Researcher purchases access:
+1.  The Orchestrator detects the `AccessGranted` event.
+2.  It asks the Web App for the **Encrypted Key Envelope** for that specific dataset.
+3.  The Orchestrator uses its **Private Key** to decrypt the envelope via ECIES, revealing the original **AES Key**.
+4.  It downloads the encrypted dataset from 0G Storage, decrypts it in memory using the AES Key, and prepares it for the Compute provider.
+
+## Why is this secure?
+*   **Zero-Knowledge Web App:** The Next.js frontend and its database only ever see the *encrypted* dataset and the *encrypted* envelope. Even if the web database is breached, the data remains secure.
+*   **Orchestrator Isolation:** Only the Orchestrator holds the private key. As long as the Orchestrator environment (e.g., Hugging Face Spaces or your VPS) is secure, the data is safe.
