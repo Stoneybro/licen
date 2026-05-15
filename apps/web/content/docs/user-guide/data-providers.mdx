@@ -1,54 +1,92 @@
 ---
-title: For Data Providers
-description: How to format, encrypt, and publish your datasets securely.
+title: For Dataset Owners
+description: Publish your dataset once, define the rules, and earn royalties automatically — forever.
 ---
 
-# For Data Providers
+# For Dataset Owners
 
-LICEN allows you to monetize your proprietary datasets without sacrificing security. By utilizing in-browser encryption and smart contracts, you maintain control over how your data is used and get paid directly.
+LICEN gives you back what the current ecosystem takes away: **control and compensation**.
 
-## 1. Preparing Your Data
+When you publish a dataset through LICEN, you define exactly who can use it, what they can use it for, and how much they pay. Those rules are enforced by a smart contract — not by a terms-of-service PDF that nobody reads.
 
-Currently, LICEN and the 0G Compute network support datasets formatted in **JSONL (JSON Lines)**.
+## Before You Start
 
-Each line in your file must be a valid JSON object representing a conversation or data point.
+You'll need:
+- A Web3 wallet (LICEN uses Privy — you can connect MetaMask, or sign in with email)
+- A small amount of **0G tokens** for gas (to anchor your dataset on-chain)
+- Your dataset in **JSONL format** (one JSON object per line, chat-style messages)
 
-**Example format:**
 ```json
-{"messages": [{"role": "system", "content": "You are a coding assistant."}, {"role": "user", "content": "Write a Python script."}, {"role": "assistant", "content": "print('Hello World')"}]}
-{"messages": [{"role": "system", "content": "You are a coding assistant."}, {"role": "user", "content": "What is an array?"}, {"role": "assistant", "content": "An array is a data structure..."}]}
+{"messages": [{"role": "system", "content": "You are a medical coding assistant."}, {"role": "user", "content": "Code this diagnosis."}, {"role": "assistant", "content": "ICD-10: J18.9"}]}
+{"messages": [{"role": "system", "content": "You are a medical coding assistant."}, {"role": "user", "content": "What does E11 mean?"}, {"role": "assistant", "content": "E11 is Type 2 diabetes mellitus."}]}
 ```
 
-## 2. Publishing the Dataset
+Get testnet tokens from the [0G Faucet →](https://faucet.0g.ai/)
 
-1.  Connect your wallet to the LICEN web application.
-2.  Navigate to the **Publish** section.
-3.  Select your prepared `JSONL` file.
+---
 
-### What happens under the hood?
-When you select the file, the LICEN app performs **client-side encryption**:
-*   A random 256-bit AES key is generated in your browser.
-*   The `JSONL` file is encrypted using AES-GCM.
-*   The AES key is then encrypted using the public key of the LICEN Orchestrator (creating the "Key Envelope").
-*   *Your plaintext data never leaves your computer.*
+## Publishing a Dataset
 
-## 3. Setting the Policy
+### 1. Connect your wallet
 
-You control the pricing of your dataset:
+Go to the LICEN app and connect. You can use any EVM wallet or sign in with Google — Privy handles the wallet creation automatically.
 
-*   **Price per Epoch:** Set the cost (in 0G tokens) a researcher must pay for every epoch they wish to train their model using your data.
-*   **Max Epochs:** Optionally, restrict the maximum number of epochs a single researcher can run.
+### 2. Navigate to Publish
 
-## 4. Confirming the Transaction
+Click **New Dataset** from your dashboard.
 
-Once the file is encrypted, the app will prompt you to sign a transaction with your Web3 wallet.
+### 3. Upload your file
 
-This transaction:
-1.  Uploads the **encrypted** dataset to 0G Storage.
-2.  Registers your pricing policy on the `DataPolicy` smart contract.
+Select your JSONL file. As soon as you select it, **encryption begins in your browser**:
 
-## 5. Receiving Payments
+- A random AES-256-GCM key is generated locally
+- Your dataset is encrypted with that key
+- The key is sealed inside an ECIES envelope using the Orchestrator's public key
+- Only the encrypted blob is ever uploaded — your plaintext never leaves your computer
 
-When a researcher decides to use your dataset, they interact with the smart contract and pay the required fee upfront. 
+### 4. Set your policy
 
-These funds are instantly sent to your wallet address or held in the contract for you to claim, ensuring a trustless, peer-to-peer transaction.
+This is where you define the rules of the game:
+
+| Setting | What it controls |
+|---|---|
+| **Price per epoch** | How much (in 0G tokens) a researcher pays per training pass |
+| **Max epochs per run** | Maximum training passes in a single session |
+| **Max runs per requester** | Lifetime cap per researcher wallet |
+| **Session duration** | How long an approved session stays valid |
+| **Allowed purposes** | Which use cases are permitted (medical research, code generation, etc.) |
+| **Policy expiry** | When the dataset stops accepting new access requests |
+
+### 5. Publish
+
+One wallet transaction does everything:
+1. Uploads the encrypted dataset to **0G Storage**
+2. Uploads the policy manifest (off-chain metadata) to 0G Storage
+3. Anchors the `datasetRoot` and policy hash to the **DataPolicy smart contract** on 0G Chain
+
+You'll receive a **Dataset ID** — the Merkle root of your encrypted upload. Keep this. It's your dataset's permanent on-chain identity.
+
+---
+
+## Getting Paid
+
+When a researcher requests access to your dataset:
+1. They lock escrow in the DataPolicy contract (`royaltyPerEpoch × requestedEpochs`)
+2. The training job runs
+3. The contract automatically settles royalties to your wallet when the job completes
+
+**There is no invoicing. There is no chasing payments.** The smart contract enforces settlement — it's not optional.
+
+If a job fails or the researcher requested more epochs than were actually used, the difference is refunded to them automatically. You only get paid for actual compute.
+
+---
+
+## Tracking Your Revenue
+
+Your publisher dashboard shows:
+- All published datasets with their current status
+- Total lifetime royalties per dataset
+- Active sessions (jobs currently running on your data)
+- Settlement history
+
+Every event — access granted, job started, job completed, royalty paid — is logged on-chain and visible in the audit view.

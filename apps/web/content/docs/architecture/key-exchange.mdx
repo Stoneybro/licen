@@ -1,46 +1,96 @@
 ---
 title: Key Exchange Protocol
-description: How LICEN securely transfers decryption keys using ECIES.
+description: How LICEN moves a dataset encryption key from a publisher's browser to the Orchestrator — without any server ever seeing it in plaintext.
 ---
 
-# The Key Exchange Protocol
+# Key Exchange Protocol
 
-The most critical security challenge in LICEN is getting the decryption key from the Dataset Provider's browser to the Backend Orchestrator without ever exposing it to the public or storing it in plaintext.
+This is the most security-critical part of LICEN. The question it answers: **how does the Orchestrator get the dataset's AES decryption key without LICEN's own servers ever holding it?**
 
-We solve this using a combination of **AES (Symmetric)** and **ECIES (Asymmetric)** encryption.
+The answer is ECIES envelope encryption — a pattern where the key is encrypted *for a specific recipient* (the Orchestrator) before it ever leaves the publisher's browser.
 
-## The Challenge
-*   **Large Files:** Datasets are too large to be encrypted using public-key cryptography (like RSA or ECIES) directly.
-*   **Symmetric Need:** They must be encrypted with a fast symmetric algorithm like AES.
-*   **Key Distribution:** The AES key must be securely transmitted to the Orchestrator so it can decrypt the file later.
+---
 
-## Step-by-Step Flow
+## The Setup (One Time)
 
-### 1. Orchestrator Key Generation (Setup)
-When the LICEN Orchestrator is deployed, it generates a standard `secp256k1` keypair. 
-*   **Private Key:** Kept secret within the Orchestrator's environment variables (`ORCHESTRATOR_PRIVATE_KEY`).
-*   **Public Key:** Hardcoded into the Next.js Web App environment.
+When the Orchestrator is deployed, it generates a `secp256k1` keypair:
 
-### 2. Client-Side Encryption (Browser)
-When a Data Provider selects a `JSONL` file to publish:
-1.  The browser generates a strong, random 256-bit **AES Key**.
-2.  The `JSONL` dataset is encrypted using this AES key (AES-GCM mode).
-3.  The resulting encrypted blob is uploaded to **0G Storage**.
+- **Private key** — stored in the Orchestrator's environment variables (`ORCHESTRATOR_PRIVATE_KEY`). Never shared.
+- **Public key** — hardcoded into the Next.js app environment (`NEXT_PUBLIC_ORCHESTRATOR_PUBLIC_KEY`). Visible to everyone. That's intentional.
 
-### 3. The Envelope (Browser)
-Before the browser forgets the AES key:
-1.  It takes the **AES Key**.
-2.  It encrypts the AES Key using the **Orchestrator's Public Key** via ECIES (Elliptic Curve Integrated Encryption Scheme).
-3.  This creates the **Encrypted Key Envelope**.
-4.  This envelope is saved to the Web App's database via an API call when the user submits the publish transaction.
+---
 
-### 4. Unsealing (Orchestrator)
-When an AI Researcher purchases access:
-1.  The Orchestrator detects the `AccessGranted` event.
-2.  It asks the Web App for the **Encrypted Key Envelope** for that specific dataset.
-3.  The Orchestrator uses its **Private Key** to decrypt the envelope via ECIES, revealing the original **AES Key**.
-4.  It downloads the encrypted dataset from 0G Storage, decrypts it in memory using the AES Key, and prepares it for the Compute provider.
+## Phase 1: Publish (In the Browser)
 
-## Why is this secure?
-*   **Zero-Knowledge Web App:** The Next.js frontend and its database only ever see the *encrypted* dataset and the *encrypted* envelope. Even if the web database is breached, the data remains secure.
-*   **Orchestrator Isolation:** Only the Orchestrator holds the private key. As long as the Orchestrator environment (e.g., Hugging Face Spaces or your VPS) is secure, the data is safe.
+When a publisher selects their JSONL file:
+
+```
+Browser generates random AES-256-GCM key
+         │
+         ├─► Encrypts dataset with AES key ──────────────► Upload to 0G Storage
+         │         (ciphertext + auth tag)                   (datasetRoot returned)
+         │
+         └─► Encrypts AES key with Orchestrator's          Save to Web App DB
+             public key via ECIES                   ──────► (keyed by datasetRoot)
+             (= "Key Envelope")
+```
+
+The web app's database only ever holds the **sealed envelope** — the AES key encrypted with the Orchestrator's public key. Even if the database is compromised, the AES key cannot be recovered without the Orchestrator's private key.
+
+---
+
+## Phase 2: Access (Orchestrator)
+
+When a researcher pays escrow and the `AccessGranted` event fires:
+
+```
+Orchestrator confirms on-chain state = Granted
+         │
+         ▼
+Fetches sealed envelope from Web App API
+         │
+         ▼
+Decrypts envelope with ECIES private key ──────────► AES key revealed (in memory)
+         │
+         ▼
+Downloads encrypted dataset from 0G Storage
+         │
+         ▼
+Decrypts dataset in memory (AES-256-GCM)
+         │
+         ├─► Re-uploads plaintext to 0G Storage for compute dispatch
+         │
+         └─► Zeros AES key bytes from memory (finally block)
+```
+
+The AES key exists in plaintext for **seconds** — only in the Orchestrator's memory, only after on-chain payment confirmation.
+
+---
+
+## Why This Is Secure
+
+| Property | Mechanism |
+|---|---|
+| Web app cannot decrypt datasets | App DB holds only the sealed envelope, not the private key |
+| Researchers cannot access raw data | The AES key is never exposed in the browser or API responses |
+| Database breach doesn't leak data | Sealed envelope is useless without the Orchestrator's private key |
+| Key exposure window is minimal | AES key is in memory for seconds, then zeroed |
+| Payment is required before key use | Orchestrator checks on-chain state before any decryption — not just Envio events |
+
+---
+
+## The MVP Limitation (and the Upgrade Path)
+
+The current Orchestrator is a **centralised key custodian**. It is the trusted operator — equivalent to the trust the `backendWallet` role has in the DataPolicy contract.
+
+This is the honest limitation: a compromised Orchestrator could theoretically decrypt any envelope it holds.
+
+The upgrade path to decentralise key custody is straightforward because the envelope format is system-agnostic:
+
+| Stage | Key Custodian | Decentralisation |
+|---|---|---|
+| **MVP (current)** | Orchestrator ECIES key | Centralised trusted operator |
+| **Hardening** | Shamir Secret Sharing (3-of-5 nodes) | Partial — requires collusion |
+| **Production** | Lit Protocol (Chipotle) or Threshold Network TACo | Fully decentralised TEE network |
+
+Upgrading requires no changes to the DataPolicy contract, the publish flow, or the frontend — only the Orchestrator's `keyExchange.ts` module changes.

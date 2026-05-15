@@ -1,63 +1,145 @@
 ---
 title: Smart Contracts
-description: Understanding DataPolicy.sol and 0G Testnet deployment.
+description: DataPolicy.sol — the on-chain authority for policy enforcement, escrow management, and royalty settlement.
 ---
 
 # Smart Contracts
 
-LICEN relies on a central smart contract, `DataPolicy.sol`, deployed on the 0G Testnet EVM. It handles dataset registration, pricing, and access control.
+LICEN's on-chain logic lives in a single contract: **`DataPolicy.sol`**, deployed on the **0G Newton Testnet**.
 
-## Contract Architecture
+## Deployed Address
 
-The contract maintains a registry of datasets, keyed by their 0G Storage `rootHash`.
+| Contract | Network | Address |
+|---|---|---|
+| `DataPolicy` | 0G Newton Testnet (Chain ID: 16602) | `0x565ab137D5D18B7Aa32783C7D1a8dc29d83687E7` |
 
-### 1. Registering a Policy
-When a dataset provider publishes data, they call `registerPolicy()`.
+[View on 0G Explorer →](https://scan-testnet.0g.ai/address/0x565ab137D5D18B7Aa32783C7D1a8dc29d83687E7)
+
+---
+
+## Network Details
+
+| Parameter | Value |
+|---|---|
+| Network Name | 0G Newton Testnet |
+| RPC URL | `https://evmrpc-testnet.0g.ai` |
+| Chain ID | `16602` |
+| Currency | `0G` (native) |
+| Block Explorer | `https://scan-testnet.0g.ai` |
+
+---
+
+## On-Chain Data Model
+
+### The Policy Struct
+
 ```solidity
-function registerPolicy(
-    string memory datasetRoot,
-    uint256 pricePerEpoch,
-    uint256 maxEpochs
+struct Policy {
+    bytes32 datasetRoot;        // Merkle root of encrypted dataset on 0G Storage
+    address owner;              // Royalty recipient
+    bytes32 manifestHash;       // Hash of off-chain policy manifest (integrity anchor)
+    uint256 royaltyPerEpoch;    // Cost per training epoch (in native 0G, wei units)
+    uint32  maxEpochsPerRun;    // Max epochs per single training session
+    uint32  maxRunsPerRequester;// Lifetime session cap per researcher wallet
+    uint64  accessTtlSeconds;   // Session validity window after AccessGranted
+    uint64  policyExpiry;       // Unix timestamp — no new requests after this
+    bool    active;             // Publisher can pause/unpause
+}
+```
+
+### The Job Struct
+
+```solidity
+struct Job {
+    bytes32 datasetRoot;    // Dataset being trained on
+    address requester;      // Researcher who paid
+    address provider;       // = backendWallet (the Orchestrator)
+    bytes32 purposeId;      // Declared use case (keccak256 of purpose string)
+    uint32  requestedEpochs;// Epochs the researcher paid for
+    uint256 escrowAmount;   // 0G wei locked
+    uint64  requestTime;    // Unix timestamp of request
+    JobState state;         // None|Requested|Granted|Running|Completed|Failed|TimedOut|Refunded
+    bytes32 termsHash;      // Must match manifestHash at request time
+}
+```
+
+---
+
+## Key Functions
+
+### Publisher
+
+```solidity
+// Register a dataset and its policy on-chain
+function registerDataset(
+    bytes32 datasetRoot,
+    bytes32 manifestHash,
+    uint256 royaltyPerEpoch,
+    uint32  maxEpochsPerRun,
+    uint32  maxRunsPerRequester,
+    uint64  accessTtlSeconds,
+    uint64  policyExpiry,
+    bytes32[] calldata allowedPurposeIds
 ) external;
 ```
-This stores the pricing rules and marks the caller as the `provider` (owner) of the dataset.
 
-### 2. Purchasing Access
-AI Researchers call `purchaseAccess()` to initiate a training job.
+### Researcher
+
 ```solidity
-function purchaseAccess(
-    string memory datasetRoot,
-    uint256 epochs
+// Lock escrow and request access — emits AccessGranted
+function requestAccess(
+    bytes32 datasetRoot,
+    bytes32 purposeId,
+    uint32  requestedEpochs,
+    bytes32 termsHash
 ) external payable;
+// msg.value must equal royaltyPerEpoch * requestedEpochs
 ```
-*   The contract calculates `pricePerEpoch * epochs` and requires `msg.value` to match.
-*   The funds are immediately transferred to the `provider`.
-*   Crucially, it emits the `AccessGranted` event.
 
-### 3. The `AccessGranted` Event
-This event is the bridge between the blockchain and the off-chain Orchestrator.
+### Orchestrator (backendWallet only)
+
 ```solidity
-event AccessGranted(
-    bytes32 indexed jobId,
-    string datasetRoot,
-    address indexed buyer,
-    uint256 epochs
-);
+// Mark job as Running
+function startJob(bytes32 jobId) external;
+
+// Settle royalties and mark Completed
+function confirmTrainingComplete(
+    bytes32 jobId,
+    uint32  actualEpochs,
+    bytes32 resultHash,
+    bytes32 attestationRef
+) external;
+
+// Trigger researcher refund
+function markJobFailed(bytes32 jobId, string calldata reason) external;
 ```
-The LICEN Indexer listens for this specific event to notify the Orchestrator that a new job has been paid for and is ready to process.
 
-## Development & Testing
+---
 
-The contracts are built using **Foundry**.
+## Key Events
 
-To run the test suite:
+```solidity
+event DatasetRegistered(bytes32 indexed datasetRoot, address indexed owner, bytes32 manifestHash);
+event AccessGranted(bytes32 indexed jobId, bytes32 indexed datasetRoot, address indexed requester, uint32 epochs);
+event JobStarted(bytes32 indexed jobId);
+event TrainingCompleted(bytes32 indexed jobId, uint32 actualEpochs, bytes32 resultHash);
+event JobFailed(bytes32 indexed jobId, string reason);
+```
+
+---
+
+## Development
+
+Contracts are built with **Foundry**.
+
 ```bash
+# Run test suite
 cd packages/contracts
 forge test
-```
 
-To deploy a new instance to the 0G Testnet:
-```bash
+# Deploy to 0G Testnet
 source .env
-forge script script/DeployDataPolicy.s.sol --rpc-url $OG_EVM_RPC_URL --broadcast
+forge script script/DeployDataPolicy.s.sol \
+  --rpc-url $OG_EVM_RPC_URL \
+  --broadcast
 ```

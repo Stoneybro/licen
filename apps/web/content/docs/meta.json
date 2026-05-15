@@ -1,9 +1,10 @@
 {
   "pages": [
     "index",
+    "how-it-works",
     "quickstart",
-    "core-concepts",
     "user-guide",
+    "why-0g",
     "architecture",
     "developer-guide",
     "resources"

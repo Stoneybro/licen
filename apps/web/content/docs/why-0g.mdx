@@ -1,0 +1,96 @@
+---
+title: Why 0G?
+description: Why LICEN is built specifically on the 0G ecosystem — and why no other stack could do this.
+---
+
+# Why 0G?
+
+Every technology choice in LICEN exists for a specific reason. This page explains why 0G is not a convenient integration — it's a **technical requirement** for the protocol to work.
+
+---
+
+## The Short Answer
+
+Three properties have to hold simultaneously for LICEN to work:
+
+1. **Dataset identity must be tamper-proof and verifiable on-chain** — the smart contract needs a way to reference a specific file without trusting a URL
+2. **Royalty enforcement needs a programmable settlement layer** — not a payment API, a contract that self-executes
+3. **Training jobs must produce verifiable proof that computation actually happened** — so settlement is based on real work, not self-reported results
+
+No traditional stack satisfies all three. The 0G ecosystem does.
+
+---
+
+## 0G Storage — Verifiable Dataset Identity
+
+**The problem with S3:** A URL can change. A bucket can be deleted. An object can be replaced. You cannot anchor a URL on-chain and trust that the file it points to is still the same file next week.
+
+**What 0G Storage gives us:** Every upload returns a **Merkle root** — a cryptographic commitment to the exact bytes of the file. This root becomes the `datasetRoot` stored in the DataPolicy contract.
+
+When the Orchestrator downloads the dataset later, it can verify that the bytes it received produce the same Merkle root. The contract and the file are permanently linked — **trustlessly**.
+
+This is the foundation of LICEN's dataset identity model. Without content-addressed storage, there is no reliable way to enforce that the right dataset is being trained on.
+
+```
+Publisher uploads encrypted blob
+         │
+         ▼
+0G Storage returns Merkle root ──────────────────► Stored in DataPolicy.sol
+         │                                          │
+         ▼                                          ▼
+Orchestrator downloads & verifies           Contract references are
+root matches before unsealing key            immutably linked to exact bytes
+```
+
+---
+
+## 0G Chain — The Enforcement Layer
+
+LICEN's core logic — policy registration, escrow management, access gating, and royalty settlement — runs on **0G Chain**.
+
+Why not Ethereum mainnet? Gas costs make per-epoch micro-payments economically unviable. Why not a generic L2? The 0G Chain is designed to be native to the 0G ecosystem — the same chain where Storage and Compute transactions are settled.
+
+The `DataPolicy` contract is the financial arbiter of the entire protocol:
+- It holds researcher escrow until training is verified complete
+- It releases royalties to dataset owners automatically
+- It enforces every policy limit (epoch caps, session TTLs, allowed purposes) at the transaction level
+
+**A license is a PDF. LICEN is enforcement.** The difference is the chain.
+
+---
+
+## 0G Compute — Verifiable Training
+
+**The problem with generic compute:** If a researcher pays for 100 epochs of training and the compute provider reports "done," there's no way to verify that 100 epochs actually ran — or that the model wasn't cached from a previous job.
+
+**What 0G Compute gives us:** Fine-tuning jobs run inside **Trusted Execution Environments (TEE)** — hardware-isolated sandboxes (Intel TDX / AMD SEV-SNP architecture) that produce cryptographic proof that the specified computation occurred.
+
+The Orchestrator stores the 0G Compute task UUID as an `attestationRef` on-chain. This is the reference for future TEE quote verification — on-chain proof that the hardware actually ran the job.
+
+Settlement in LICEN is based on `actualEpochs` (what the TEE ran) vs. `requestedEpochs` (what the researcher paid for). Researchers only pay for real work. Publishers only get paid for verified training. No oracle required.
+
+---
+
+## Envio HyperIndex — Real-Time Marketplace Data
+
+The LICEN marketplace shows live dataset listings, prices, and availability. This data comes from on-chain events — but polling a raw RPC node for every user page load is slow and expensive.
+
+**Envio** provides an extremely fast, EVM-compatible indexer that listens for specific contract events (`DatasetRegistered`, `AccessGranted`, `JobCompleted`) and exposes them via GraphQL.
+
+This means:
+- The marketplace hydrates instantly from indexed data, not slow RPC calls
+- The Orchestrator polls Envio (not raw chain state) for `Granted` jobs
+- Every on-chain settlement event is immediately visible in the publisher's earnings dashboard
+
+---
+
+## Summary
+
+| 0G Component | What LICEN uses it for | Why it can't be swapped |
+|---|---|---|
+| **0G Storage** | Encrypted dataset storage, Merkle-root identity | Content-addressed roots are the only way to trustlessly link a contract to a file |
+| **0G Chain** | DataPolicy contract, escrow, settlement | Native to 0G ecosystem; cheap enough for per-epoch micro-payments |
+| **0G Compute** | TEE fine-tuning with attestation | Only decentralized compute network with TEE fine-tuning at this scale |
+| **Envio HyperIndex** | Event indexing for marketplace + Orchestrator | Real-time GraphQL over raw RPC = 10× faster marketplace |
+
+LICEN is not a Web2 app with a Web3 badge. The decentralization is **load-bearing**.

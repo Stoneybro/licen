@@ -1,44 +1,114 @@
 ---
 title: Data Lifecycle
-description: The complete journey of a dataset from upload to model delivery.
+description: The complete journey of a dataset — from a file on your computer to a trained model in a researcher's hands.
 ---
 
 # Data Lifecycle
 
-Understanding the step-by-step journey of a dataset clarifies how all the LICEN microservices interact in a production environment.
+Five phases. No single point of trust. Here's every step a dataset takes from upload to model delivery.
 
-## Phase 1: Ingestion (Publishing)
+---
 
-1.  **Selection:** The Data Provider selects a `JSONL` file in the Web UI.
-2.  **Encryption:** The browser generates an AES key, encrypts the file, and then ECIES-encrypts the AES key using the Orchestrator's public key (creating the Envelope).
-3.  **Storage:** The encrypted file is uploaded to **0G Storage** via the 0G TS SDK. A `rootHash` is returned.
-4.  **Database:** The Web UI saves the Envelope and metadata to the PostgreSQL database, keyed by the `rootHash`.
-5.  **Smart Contract:** The user's wallet sends a transaction to `DataPolicy.sol`, registering the `rootHash` and pricing rules on the 0G Testnet.
+## Phase 1: Publish
 
-## Phase 2: Purchasing Access
+**Actor:** Dataset Owner (browser)
 
-1.  **Discovery:** An AI Researcher views the dataset on the Marketplace.
-2.  **Payment:** The Researcher specifies the number of training epochs and submits a transaction to `DataPolicy.sol`, paying the required fee.
-3.  **Event Emission:** The smart contract validates the payment and emits an `AccessGranted(jobId, datasetRoot, buyer, epochs)` event.
-4.  **Indexing:** The **Envio Indexer** detects the event and updates its GraphQL graph.
+1. Publisher selects a JSONL file
+2. Browser generates a random **AES-256-GCM key**
+3. Dataset is encrypted client-side → encrypted blob
+4. AES key is ECIES-sealed with the Orchestrator's public key → **key envelope**
+5. Encrypted blob + envelope uploaded to **0G Storage** → `datasetRoot` (Merkle root) returned
+6. Policy manifest JSON uploaded to 0G Storage → `manifestHash` returned
+7. Publisher signs a transaction calling `registerDataset(datasetRoot, manifestHash, policyParams)` on the **DataPolicy contract**
 
-## Phase 3: Orchestration (The Background Worker)
+**State after phase:** Dataset is on-chain. Policy is enforced. Plaintext has never touched LICEN's servers.
 
-1.  **Polling:** The **LICEN Orchestrator** polls the Indexer every 5 seconds. It discovers the new `AccessGranted` job.
-2.  **Envelope Retrieval:** The Orchestrator queries the Web API to fetch the Envelope associated with the `datasetRoot`. (This requires the `ORCHESTRATOR_API_SECRET`).
-3.  **Decryption:** The Orchestrator decrypts the Envelope with its private key, revealing the AES key.
-4.  **Download:** It downloads the encrypted dataset from 0G Storage.
-5.  **Unsealing:** It decrypts the dataset in memory to its original plaintext `JSONL` format.
+---
 
-## Phase 4: Compute Dispatch
+## Phase 2: Discovery
 
-1.  **Re-upload:** Because 0G Compute providers currently require plaintext data, the Orchestrator uploads the plaintext `JSONL` back to 0G Storage, receiving a *new* `plaintextRootHash`.
-2.  **Dispatch:** The Orchestrator uses the 0G Compute SDK to send a `createTask` request to an available GPU provider, passing the `plaintextRootHash` and the requested epochs.
-3.  **State Update:** The Orchestrator saves the returned Compute `taskId` to its local database and calls `startJob()` on the smart contract.
+**Actor:** Envio Indexer + Marketplace UI
 
-## Phase 5: Delivery
+1. Envio detects `DatasetRegistered(datasetRoot, owner, manifestHash)` event
+2. Indexes the event into GraphQL
+3. Marketplace UI hydrates dataset cards from Envio GraphQL
 
-1.  **Training:** The 0G Compute provider downloads the plaintext data, executes the fine-tuning on the specified model (e.g., Qwen2.5), and generates a LoRA adapter.
-2.  **Upload Result:** The provider uploads the trained model back to 0G Storage.
-3.  **Completion:** The Orchestrator polls the task status. When it sees `Completed`, it fetches the result hash.
-4.  **User Access:** The AI Researcher sees the job marked as "Completed" in their UI and can download the model using the provided result hash.
+**State after phase:** Dataset is visible to researchers in the marketplace, with live on-chain policy data.
+
+---
+
+## Phase 3: Access Request
+
+**Actor:** AI Researcher
+
+1. Researcher selects dataset, configures epoch count
+2. UI calculates `escrow = royaltyPerEpoch × requestedEpochs`
+3. Researcher signs `requestAccess(datasetRoot, purposeId, epochs)` — escrow is locked
+4. DataPolicy contract validates against policy (epoch caps, session TTL, allowed purposes)
+5. Contract emits `AccessGranted(jobId, datasetRoot, requester, epochs)`
+6. Envio indexes the event
+
+**State after phase:** Escrow is locked. Job is `Granted`. Researcher cannot access data yet — the Orchestrator hasn't acted.
+
+---
+
+## Phase 4: Orchestration
+
+**Actor:** Orchestrator (background Node.js process)
+
+1. Orchestrator polls Envio every 5 seconds for `Granted` jobs
+2. For each new job:
+   - Verifies on-chain state is `Granted` (contract is ground truth, not Envio)
+   - Fetches sealed key envelope from Web App API (`/api/orchestrator/key-envelope?datasetRoot=...`)
+   - Decrypts envelope with ECIES private key → **AES key in memory**
+   - Downloads encrypted dataset from 0G Storage
+   - Decrypts blob in memory → plaintext JSONL
+   - Re-uploads plaintext to 0G Storage → `plaintextRootHash`
+   - Deletes temp file; zeros AES key bytes
+   - Calls `@0gfoundation/0g-compute-ts-sdk` → `createFineTuningTask(provider, model, plaintextRootHash, epochs)` → `taskId`
+   - Saves `taskId` + `providerAddress` to `compute_jobs` DB table
+   - Calls `startJob(jobId)` on DataPolicy contract → state moves to `Running`
+
+**State after phase:** Job is `Running`. AES key is gone from memory. Plaintext is temporarily on 0G Storage (required by current 0G Compute SDK). Training is dispatched.
+
+---
+
+## Phase 5: Training & Settlement
+
+**Actor:** 0G Compute Provider + Orchestrator
+
+1. GPU provider downloads plaintext dataset from 0G Storage
+2. Fine-tuning runs inside **TEE enclave** (hardware-isolated)
+3. LoRA adapter uploaded to 0G Storage by provider → `resultHash`
+4. Orchestrator's `jobTracker` polls task status every 30 seconds
+
+When status = `Delivered`:
+- Orchestrator calls `acknowledgeModel(taskId, provider)` — provider fee settlement
+
+When status = `Finished`:
+- Orchestrator calls `confirmTrainingComplete(jobId, actualEpochs, resultHash, attestationRef)`
+- DataPolicy contract:
+  - Releases `actualEpochs × royaltyPerEpoch` to the publisher
+  - Refunds unused escrow `(requestedEpochs − actualEpochs) × royaltyPerEpoch` to researcher
+  - Sets job state to `Completed`
+
+5. Researcher sees job as `Completed` in their session view
+6. Researcher downloads LoRA adapter using `resultHash`
+
+**State after phase:** Publisher paid. Researcher has their model. Settlement is on-chain and auditable.
+
+---
+
+## Failure Handling
+
+If any step in Phase 4 or 5 fails:
+
+| Failure point | What happens |
+|---|---|
+| Key decryption error | Orchestrator calls `markJobFailed()` → researcher auto-refunded |
+| 0G Storage download error | Same — `markJobFailed()` + refund |
+| Compute dispatch error | Same — `markJobFailed()` + refund |
+| 0G Compute task `Failed` | `jobTracker` calls `markJobFailed()` + refund |
+| Orchestrator crash/restart | `jobTracker` resumes all `running` jobs from DB on startup |
+
+The researcher is never stuck waiting — failed jobs always trigger a refund path.

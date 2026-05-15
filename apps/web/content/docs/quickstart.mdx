@@ -1,50 +1,61 @@
 ---
 title: Quickstart
-description: A 5-minute guide to using LICEN.
+description: Start publishing or training in under 5 minutes.
 ---
 
 # Quickstart
 
-Get started with LICEN as a dataset provider or an AI researcher in just a few minutes. 
+Get up and running on LICEN in a few minutes. You'll need a wallet and some testnet tokens — that's it.
 
-Since LICEN operates on the **0G Testnet**, you will need a Web3 wallet and some testnet tokens to interact with the platform.
+## Step 1: Set Up Your Wallet
 
-## Prerequisites
+LICEN uses **Privy** for authentication. You can connect an existing wallet (MetaMask, WalletConnect) or create one with your email or Google account.
 
-1.  **A Web3 Wallet:** We recommend [MetaMask](https://metamask.io/).
-2.  **Add the 0G Testnet to your Wallet:**
-    *   **Network Name:** 0G Testnet
-    *   **RPC URL:** `https://evmrpc-testnet.0g.ai`
-    *   **Chain ID:** `16602`
-    *   **Currency Symbol:** `0G`
-    *   **Block Explorer:** `https://scan-testnet.0g.ai`
-3.  **Get Testnet Tokens:** Visit the [0G Faucet](https://faucet.0g.ai/) and request testnet tokens for your wallet address. You will need these to pay for storage and compute fees.
+## Step 2: Get Testnet Tokens
+
+LICEN runs on the **0G Newton Testnet**. Get free testnet 0G tokens from the faucet:
+
+[0G Faucet →](https://faucet.0g.ai/)
+
+Add the network to your wallet:
+
+| Setting | Value |
+|---|---|
+| Network Name | 0G Newton Testnet |
+| RPC URL | `https://evmrpc-testnet.0g.ai` |
+| Chain ID | `16602` |
+| Currency | `0G` |
+| Explorer | `https://scan-testnet.0g.ai` |
+
+## Step 3: Choose Your Path
+
+<Cards>
+  <Card title="I have a dataset to monetize" href="/docs/user-guide/data-providers">
+    Publish your dataset, set your policy, and start earning royalties automatically.
+  </Card>
+  <Card title="I want to fine-tune a model" href="/docs/user-guide/ai-researchers">
+    Browse the marketplace, pay for the epochs you need, receive your trained model.
+  </Card>
+</Cards>
 
 ---
 
-## Path 1: Publish a Dataset
+## Running Locally
 
-If you have data you want to monetize:
+If you want to run LICEN yourself:
 
-1.  **Format your data:** Prepare your dataset in `JSONL` format. This is the standard format required for fine-tuning on 0G Compute.
-    ```json
-    {"messages": [{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": "Hello!"}, {"role": "assistant", "content": "Hi there!"}]}
-    ```
-2.  **Connect to LICEN:** Go to the LICEN application and connect your Web3 wallet.
-3.  **Navigate to Publish:** Click on "Publish Dataset".
-4.  **Upload & Encrypt:** Select your `JSONL` file. The file will be encrypted locally in your browser.
-5.  **Set Policies:** Define the cost per epoch and the maximum number of epochs researchers can train on your data.
-6.  **Confirm Transaction:** Approve the transaction in your wallet. The encrypted dataset will be uploaded to 0G Storage, and your policy will be registered on-chain.
+```bash
+git clone https://github.com/stoneybros-projects/licen.git
+cd licen
+pnpm install
 
----
+# Web app
+cp apps/web/.env.example apps/web/.env.local
+cd apps/web && pnpm dev
 
-## Path 2: Fine-tune a Model
+# Orchestrator (separate terminal)
+cp packages/orchestrator/.env.example packages/orchestrator/.env
+cd packages/orchestrator && pnpm dev
+```
 
-If you are a researcher looking to train a model:
-
-1.  **Browse the Marketplace:** Connect your wallet and navigate to the LICEN marketplace to browse available datasets.
-2.  **Select a Dataset:** Click on a dataset to view its details, including the price per epoch.
-3.  **Configure Compute:** Choose how many epochs you want to train for. The total cost will be calculated automatically.
-4.  **Purchase Access:** Click "Start Fine-Tuning" and approve the transaction in your wallet. This transfers the payment to the dataset provider and grants you access.
-5.  **Track the Job:** Navigate to your "Sessions" or "Dashboard" page. You will see the job move from `Queue` -> `Running` -> `Completed`. The LICEN Orchestrator handles the background dispatch automatically.
-6.  **Download the Model:** Once completed, you will receive a link to download the resulting trained model (LoRA adapter) from 0G Storage.
+See the [Developer Guide](/docs/developer-guide/local-setup) for full setup details.

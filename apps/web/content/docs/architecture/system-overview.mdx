@@ -1,55 +1,140 @@
 ---
 title: System Overview
-description: A high-level look at the LICEN microservices architecture.
+description: The five-service architecture that enforces LICEN's dataset licensing protocol.
 ---
 
 # System Overview
 
-LICEN is not a single monolithic application. It is a suite of microservices designed to securely pass encrypted data and payment authorizations across trust boundaries without relying on a central, trusted server.
+LICEN is not a single application. It is five services that pass encrypted data and payment authorizations across trust boundaries — **without any single service having full access to everything**.
 
-## Architecture Diagram
+## The Five Services
 
-```mermaid
-graph TD;
-    User[Web App / User Browser] -->|1. Encrypts Data| 0GStorage[(0G Storage)];
-    User -->|2. Pays Fee| Contract[DataPolicy Smart Contract];
-    
-    Contract -->|3. Emits AccessGranted| Indexer[Envio HyperIndex];
-    
-    Orchestrator[LICEN Orchestrator] -->|4. Polls for Events| Indexer;
-    Orchestrator -->|5. Fetches Encrypted Key| WebAppDB[(Web App DB)];
-    
-    Orchestrator -->|6. Decrypts & Uploads| 0GStorage;
-    Orchestrator -->|7. Dispatches Task| 0GCompute[0G Compute Provider];
-    
-    0GCompute -->|8. Uploads Model| 0GStorage;
+```
+┌─────────────────────────────────────────────────────────┐
+│                      Web Application                     │
+│  (Next.js · Publisher UI · Marketplace · Session Tracker)│
+└────────────────────────┬────────────────────────────────┘
+                         │ User actions (encrypt, publish, request)
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│                   DataPolicy Contract                    │
+│        (0G Chain · Policy registry · Escrow · Settlement)│
+└────────────────────────┬────────────────────────────────┘
+                         │ AccessGranted events
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│                    Envio Indexer                          │
+│          (HyperIndex · GraphQL · Event streaming)         │
+└────────────────────────┬────────────────────────────────┘
+                         │ Granted job queue
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│                     Orchestrator                          │
+│  (Node.js · ECIES key custodian · 0G Storage · Dispatch) │
+└────────────────────────┬────────────────────────────────┘
+                         │ Fine-tuning task
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│                    0G Compute (TEE)                       │
+│        (GPU providers · TEE enclave · LoRA training)      │
+└─────────────────────────────────────────────────────────┘
 ```
 
-## The Components
+---
 
-### 1. The Web Application (Frontend & API)
-Built with **Next.js**, this is the user-facing application. 
-*   **Client-Side:** Handles wallet connections, in-browser dataset encryption (AES + ECIES), and interacting with the smart contract.
-*   **Server-Side:** Acts as a secure store for the "Encrypted Key Envelopes" in a PostgreSQL database (Neon).
+## 1. The Web Application
 
-### 2. The Smart Contract
-Deployed on the 0G Testnet EVM, `DataPolicy.sol` acts as the financial arbiter.
-*   It records dataset pricing.
-*   It accepts payments from researchers and routes them to providers.
-*   It emits an immutable `AccessGranted` event that triggers the compute workflow.
+Built with **Next.js** and deployed on Vercel.
 
-### 3. The Indexer (Envio HyperIndex)
-Instead of forcing the Orchestrator to scan every block on the blockchain, the **Envio Indexer** provides a high-performance GraphQL API.
-*   It listens exclusively for `AccessGranted` events on the `DataPolicy` contract.
-*   It structures this data so the Orchestrator can easily query "What jobs are pending?"
+**Publisher side:**
+- Wallet connection via **Privy** (supports MetaMask, WalletConnect, or email/social login)
+- In-browser AES-256-GCM encryption — plaintext never leaves the user's machine
+- ECIES envelope generation (wraps the AES key with the Orchestrator's public key)
+- Uploads to 0G Storage via the `@0gfoundation/0g-ts-sdk`
+- Calls `registerDataset()` on the DataPolicy contract
 
-### 4. The Orchestrator
-This is the "Brain" of the backend infrastructure. It is a long-running Node.js background process.
-*   **Secure:** It is the *only* entity that holds the ECIES private key required to unseal the dataset decryption keys.
-*   **Automated:** It polls the Indexer, fetches the key envelope from the Web App API, decrypts the dataset in memory, and dispatches the task to the **0G Compute Network**.
-*   **Stateful:** It maintains a local database table (`compute_jobs`) to track the progress of long-running GPU tasks.
+**Researcher side:**
+- Marketplace view populated via Envio GraphQL
+- Session configuration (epoch count, cost calculation)
+- Calls `requestAccess()` on the DataPolicy contract, locking escrow
 
-### 5. 0G Storage & Compute
-The underlying decentralized infrastructure provided by the 0G Foundation.
-*   **Storage:** Hosts the encrypted datasets uploaded by users, the temporary plaintext datasets required for compute, and the final trained models.
-*   **Compute:** A network of GPU providers that pick up the dispatched fine-tuning tasks.
+**API routes (server-side):**
+- `/api/orchestrator/key-envelope` — serves encrypted key envelopes to the Orchestrator (authenticated via `ORCHESTRATOR_API_SECRET`)
+
+---
+
+## 2. The DataPolicy Contract
+
+`DataPolicy.sol` is the protocol's source of truth. Deployed on **0G Chain (Newton Testnet)**.
+
+**Key state stored on-chain:**
+- `datasetRoot` (bytes32) — Merkle root of the encrypted dataset
+- `manifestHash` (bytes32) — hash of the off-chain policy JSON
+- `royaltyPerEpoch`, `maxEpochsPerRun`, `maxRunsPerRequester`, `accessTtlSeconds` — enforced at transaction time
+- Per-job state machine: `None → Requested → Granted → Running → Completed / Failed / Refunded`
+
+**Key functions:**
+- `registerDataset()` — publisher anchors dataset + policy on-chain
+- `requestAccess()` — researcher locks escrow, emits `AccessGranted`
+- `startJob()` — Orchestrator marks job as Running
+- `confirmTrainingComplete()` — Orchestrator settles royalties after TEE completion
+- `markJobFailed()` — Orchestrator triggers researcher refund
+
+See [Smart Contracts](/docs/developer-guide/smart-contracts) for ABI details and deployed address.
+
+---
+
+## 3. The Envio Indexer
+
+[Envio HyperIndex](https://envio.dev/) provides a real-time GraphQL API over 0G Chain events.
+
+The indexer listens for:
+- `DatasetRegistered` — populates the marketplace
+- `AccessGranted` — feeds the Orchestrator's job queue
+- `JobCompleted` / `JobFailed` — updates session views and publisher earnings
+
+This replaces raw RPC polling throughout the app. The Orchestrator queries Envio every 5 seconds for new `Granted` jobs.
+
+---
+
+## 4. The Orchestrator
+
+The Orchestrator (`packages/orchestrator`) is a long-running **Node.js process** — the most security-sensitive component in the stack.
+
+It is the **only** service that:
+- Holds the ECIES private key
+- Ever sees plaintext dataset bytes (in memory, briefly)
+- Calls settlement functions on the DataPolicy contract
+
+**Security invariant:** The Orchestrator verifies on-chain job state (`Granted`) before it performs any key operation — even if the Envio event looks valid. The contract is the ground truth.
+
+See [The Orchestrator](/docs/developer-guide/orchestrator) for the full dispatch flow.
+
+---
+
+## 5. 0G Compute (TEE)
+
+Fine-tuning jobs run on the 0G Compute provider network. Providers operate inside **Trusted Execution Environments** — hardware-isolated sandboxes that prevent the provider from seeing the model weights or training data after the job completes.
+
+The Orchestrator dispatches via `@0gfoundation/0g-compute-ts-sdk`:
+```typescript
+broker.fineTuning.createTask(provider, model, plaintextRootHash, config)
+```
+
+The returned task UUID is stored as `attestationRef` on-chain — the reference for future hardware attestation verification.
+
+Current model: `Qwen2.5-0.5B-Instruct`. Output: a LoRA adapter (~50–200MB).
+
+---
+
+## Trust Boundary Summary
+
+| Service | What it knows | What it cannot see |
+|---|---|---|
+| Web Application | Encrypted dataset, sealed key envelope | AES key, plaintext data |
+| DataPolicy Contract | Policy rules, job state, amounts | Encrypted content, keys |
+| Envio Indexer | On-chain events | Off-chain data of any kind |
+| Orchestrator | AES key (briefly), plaintext data (in memory) | Researcher identity beyond wallet |
+| 0G Compute | Plaintext data during training | AES key, encryption scheme |
+
+No single service has the full picture. This is by design.

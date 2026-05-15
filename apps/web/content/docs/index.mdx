@@ -1,35 +1,44 @@
 ---
-title: What is LICEN?
-description: An introduction to the LICEN decentralized data and AI fine-tuning platform.
+title: Introduction
+description: LICEN lets owners publish encrypted datasets, define how they can be used, and earn royalties whenever approved researchers use the data for AI model training.
 ---
 
-# What is LICEN?
+# Control & Monetize your Datasets
 
-**LICEN** is a decentralized marketplace and infrastructure platform that bridges the gap between secure data storage and verifiable AI compute.
-
-It solves a fundamental problem in the modern AI ecosystem: **How can dataset creators safely monetize their data for AI training without losing control of it, and how can AI researchers access high-quality datasets seamlessly?**
+LICEN lets owners publish encrypted datasets, define how they can be used, and earn royalties whenever approved researchers use the data for AI model training.
 
 ## The Problem
 
-1. **For Data Creators:** Publishing a dataset often means losing ownership. Once data is public, anyone can use it to train models for free.
-2. **For AI Researchers:** Finding, purchasing, and moving high-quality datasets into compute environments is a fragmented, expensive, and manual process.
+AI companies are desperate for high-quality data to train their models, but sourcing it is slow, risky, and legally murky. Independent researchers can't get access to premium training data at all.
 
-## The LICEN Solution
+On the other side: the people who created that data — academic labs, biomedical institutions, content creators — see **nothing**. Their datasets are scraped, repurposed, or locked behind legal agreements that benefit no one.
 
-LICEN provides an end-to-end pipeline that connects **Data Providers** directly to **AI Researchers** using blockchain technology, cryptographic security, and decentralized infrastructure.
+The trust gap is costing both sides. Data sits unused. AI development stalls. Value is destroyed.
 
-### Key Features
+## The Solution
 
-*   **In-Browser Encryption:** Datasets are encrypted with AES directly in the user's browser. The plaintext data never touches LICEN's servers.
-*   **Decentralized Storage:** Encrypted datasets are stored on the **0G Storage Network**, ensuring permanent, censorship-resistant availability.
-*   **Smart Contract Access Control:** Access to decrypt the dataset is governed by an on-chain `DataPolicy` smart contract. Researchers must pay the required fee to gain access.
-*   **Automated AI Compute:** Once a researcher purchases access, the LICEN **Orchestrator** automatically unseals the data and dispatches a fine-tuning job to the **0G Compute Network**.
-*   **Verifiable Output:** The researcher receives the final trained model (e.g., a LoRA adapter) directly, without ever having to download or manually process the underlying dataset.
+LICEN enforces how data is accessed, where it's used, and how revenue is shared — through programmable, auditable on-chain policies.
 
-By leveraging the [0G Foundation's](https://0g.ai/) infrastructure, LICEN creates a trustless environment where data is respected, and compute is automated.
+<Cards>
+  <Card title="For Dataset Owners" href="/docs/user-guide/data-providers">
+    Publish once, earn forever. Your dataset never leaves your control — royalties are enforced by smart contract, not by trust.
+  </Card>
+  <Card title="For AI Researchers" href="/docs/user-guide/ai-researchers">
+    Instantly access licensed training data. Pay per epoch, receive your fine-tuned model — no infrastructure to manage.
+  </Card>
+</Cards>
 
-## Who is this for?
+## What makes LICEN different
 
-*   **Dataset Providers:** Monetize your proprietary datasets securely.
-*   **AI Researchers & Engineers:** Fine-tune models (like Qwen2.5) effortlessly without managing infrastructure.
-*   **Web3 Developers:** Explore our architecture to learn how to build complex, multi-service dApps utilizing 0G, ECIES encryption, and Envio indexers.
+| The old way | LICEN |
+|---|---|
+| Share a dataset, lose control forever | Dataset stays encrypted — only licensed jobs can access it |
+| Payment via invoice or honor system | Royalties enforced by smart contract — automatic, non-negotiable |
+| No usage tracking | Every training session is logged on an immutable ledger |
+| Download and run anywhere | Jobs run in TEE compute environments with hardware attestation |
+
+## Built on 0G
+
+LICEN is built natively on the 0G ecosystem — not just using it as a bridge. Every core component of the protocol relies on a specific 0G primitive.
+
+[Learn why we chose 0G →](/docs/why-0g)

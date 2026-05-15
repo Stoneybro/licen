@@ -1,31 +1,50 @@
 ---
-title: Smart Contracts Reference
-description: Deployed addresses for the LICEN smart contracts.
+title: Deployed Contracts
+description: Live contract addresses and network details for the LICEN protocol on 0G Newton Testnet.
 ---
 
-# Smart Contracts Reference
+# Deployed Contracts
 
-LICEN currently operates exclusively on the **0G Newton Testnet**. 
+LICEN is currently live on the **0G Newton Testnet**.
 
-## Network Details
+## Network
 
-*   **Network Name:** 0G Newton Testnet
-*   **RPC URL:** `https://evmrpc-testnet.0g.ai`
-*   **Chain ID:** `16602`
-*   **Currency Symbol:** `0G`
-*   **Block Explorer:** [https://scan-testnet.0g.ai](https://scan-testnet.0g.ai)
+| Parameter | Value |
+|---|---|
+| Network Name | 0G Newton Testnet |
+| Chain ID | `16602` |
+| RPC URL | `https://evmrpc-testnet.0g.ai` |
+| Currency | `0G` (native token) |
+| Block Explorer | [scan-testnet.0g.ai](https://scan-testnet.0g.ai) |
 
-## Deployed Contracts
+Add this network to MetaMask: [0G Faucet →](https://faucet.0g.ai/) (the faucet page includes a one-click "Add Network" button)
 
-| Contract Name | Address | Description |
-| :--- | :--- | :--- |
-| **DataPolicy** | *(Coming Soon)* | Manages dataset pricing, access control, and payment routing. |
-| **MockUSDC** | *(Coming Soon)* | Used for testing stablecoin payments (Future track). |
+---
 
-*(Note: These addresses will be populated once the final testnet deployment is completed).*
+## LICEN Contracts
 
-## Official 0G Contracts
+| Contract | Address | Explorer |
+|---|---|---|
+| `DataPolicy` | `0x565ab137D5D18B7Aa32783C7D1a8dc29d83687E7` | [View →](https://scan-testnet.0g.ai/address/0x565ab137D5D18B7Aa32783C7D1a8dc29d83687E7) |
 
-If you are building custom integrations, you may need to interact with the underlying 0G infrastructure contracts directly.
+---
 
-*   **0G Storage (Testnet):** `0x0412e84ab4bF457f5C21625902047DBF59D16366`
+## 0G Infrastructure
+
+| Service | Endpoint |
+|---|---|
+| 0G Storage Indexer | `https://indexer-storage-testnet-turbo.0g.ai` |
+| 0G Storage Contract | `0x0412e84ab4bF457f5C21625902047DBF59D16366` |
+| 0G Faucet | `https://faucet.0g.ai` |
+
+---
+
+## Verifying the Contract
+
+You can read the full DataPolicy state from the 0G Explorer:
+
+- **Registered datasets** — `getPolicy(datasetRoot)` returns the full Policy struct
+- **Job state** — `getJob(jobId)` returns the current job state, escrow amount, and settlement info
+- **Publisher earnings** — `claimableRoyalties(owner)` returns unclaimed balance
+
+All settlement events are emitted on-chain and indexed by Envio. Every royalty payment, refund, and job completion is publicly auditable.

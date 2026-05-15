@@ -1,51 +1,94 @@
 ---
 title: For AI Researchers
-description: How to browse datasets, purchase access, and fine-tune models.
+description: Find licensed training data, pay per epoch, and receive your fine-tuned model — without managing infrastructure.
 ---
 
 # For AI Researchers
 
-LICEN abstracts away the complexity of managing decentralized infrastructure. You don't need to manually download encrypted files, figure out decryption keys, or set up GPU instances. You simply find the data you want, pay for compute, and receive the trained model.
+LICEN abstracts away everything you don't want to deal with: legal licensing, data procurement, storage downloads, GPU setup, and key management.
 
-## 1. Browsing the Marketplace
+You find data you want. You pay for the compute you need. You get a fine-tuned model.
 
-Navigate to the **Marketplace** in the LICEN web application. Here you will see a list of available datasets that have been published by data providers.
+## Before You Start
 
-Each dataset card displays:
-*   **Dataset Root Hash:** The unique identifier on 0G Storage.
-*   **Provider Address:** The wallet address of the data creator.
-*   **Price Per Epoch:** The cost (in 0G tokens) to train on this data for one epoch.
-*   **Max Epochs:** The maximum allowable training epochs for a single session.
+You'll need:
+- A Web3 wallet (LICEN uses Privy — MetaMask or email login both work)
+- **0G tokens** for escrow (the payment locked until your training job completes)
 
-## 2. Requesting Compute
+Get testnet tokens from the [0G Faucet →](https://faucet.0g.ai/)
 
-When you find a dataset you want to use:
+---
 
-1.  Click on the dataset to view its details.
-2.  In the training configuration panel, select the number of **Epochs** you wish to train for.
-3.  The UI will automatically calculate the total cost (`Price Per Epoch` * `Requested Epochs`).
-4.  Click **Start Fine-Tuning**.
+## Finding a Dataset
 
-## 3. The Transaction
+Go to the **Marketplace**. Every listed dataset is a live on-chain entry — the prices and policies you see are enforced by smart contract, not manually managed.
 
-Your Web3 wallet will prompt you to approve a transaction. This transaction interacts with the `DataPolicy` smart contract on the 0G Testnet.
+Each dataset card shows:
+- **Title and description** — what the dataset contains and what it's good for
+- **Allowed purposes** — what the publisher has permitted (e.g. medical research only, no commercial use)
+- **Price per epoch** — the cost in 0G tokens per training pass
+- **Max epochs per run** — the cap the publisher has set for a single session
+- **Session TTL** — how long your access grant remains valid once approved
 
-You are paying the exact amount calculated. The smart contract securely holds or transfers these funds to the data provider.
+Filter by purpose, price, or availability. Click any dataset to see its full policy.
 
-## 4. Tracking Your Job
+---
 
-Once the transaction is confirmed, navigate to your **Sessions** or **Dashboard** tab.
+## Requesting Access
 
-You will see your job progress through several states:
-1.  **Queue:** The blockchain transaction was successful, and the LICEN Orchestrator is preparing to pick it up.
-2.  **Running:** The Orchestrator has decrypted the dataset and dispatched the fine-tuning task to a 0G Compute provider.
-3.  **Completed:** The GPU provider has finished training the model.
-4.  **Failed:** Something went wrong (e.g., no compute providers available, or an issue with the dataset format).
+When you find a dataset you want:
 
-## 5. Retrieving the Model
+1. Click **Request Access**
+2. Set the number of epochs you want to train for
+3. Review the cost breakdown:
 
-When the job reaches the **Completed** state, the UI will provide you with a **Result Hash**.
+```
+Total escrow = price per epoch × requested epochs
+```
 
-This hash represents your trained model (typically a LoRA adapter) which has been automatically uploaded back to 0G Storage by the compute provider.
+4. Click **Submit** and approve the transaction in your wallet
 
-You can download this adapter and load it into your local or cloud-hosted base model (like Qwen2.5) for inference!
+That's it. The smart contract locks your escrow, validates your request against the publisher's policy, and triggers the training pipeline automatically.
+
+---
+
+## What Happens Next (automatically)
+
+After your transaction confirms, LICEN's Orchestrator takes over:
+
+| Step | What's happening |
+|---|---|
+| **Requested** | Your escrow is locked, the Orchestrator is picking up the job |
+| **Running** | The dataset has been unsealed, training is running inside a 0G Compute TEE |
+| **Completed** | Training finished, your model is on 0G Storage, settlement is processing |
+| **Failed** | Something went wrong — you'll be automatically refunded |
+
+You don't need to do anything. Track progress in your **Sessions** tab.
+
+---
+
+## Getting Your Model
+
+When the job reaches **Completed**:
+- Your session view shows a **Result Hash** — the 0G Storage root of your trained model
+- The model is a **LoRA adapter** for the base model that was trained on (e.g. Qwen2.5-0.5B-Instruct)
+- Download it and load it on top of the base model for inference
+
+```python
+from peft import PeftModel
+from transformers import AutoModelForCausalLM
+
+base = AutoModelForCausalLM.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct")
+model = PeftModel.from_pretrained(base, "./your-lora-adapter")
+```
+
+---
+
+## Escrow & Refunds
+
+You pay upfront based on the epochs you *requested*. Settlement is based on the epochs *actually completed*:
+
+- If training ran the full requested epochs → you pay the full escrow
+- If training stopped early (compute failure, early convergence) → the unused portion is automatically refunded to your wallet
+
+The DataPolicy contract handles this settlement — no support ticket required.
