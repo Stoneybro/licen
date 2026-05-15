@@ -1,5 +1,6 @@
 <div align="center">
-  <h1>LICEN</h1>
+  <img src="./apps/web/public/licen-image.png" alt="LICEN Logo" height="150" />
+    <h2>LICEN</h2>
   <p><b>Control & Monetize your Datasets on the 0G Network</b></p>
 
   <a href="https://scan-testnet.0g.ai"><img src="https://img.shields.io/badge/Network-0G%20Newton%20Testnet-blue?style=for-the-badge&logo=web3" alt="0G Network" /></a>
