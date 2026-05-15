@@ -163,7 +163,7 @@ export default function NewDatasetPage() {
 
   const [royaltyPerEpoch, setRoyaltyPerEpoch] = useState<string>("10");
   const [maxEpochsPerRun, setMaxEpochsPerRun] = useState<number>(10);
-  const [maxRunsPerRequester, setMaxRunsPerRequester] = useState<number>(1);
+  const [maxRunsPerRequester, setMaxRunsPerRequester] = useState<number>(100);
   const [ttlValue, setTtlValue] = useState<number>(30);
   const [ttlUnit, setTtlUnit] = useState<"hours" | "days" | "weeks">("days");
   const [policyExpiry, setPolicyExpiry] = useState<string>("");
