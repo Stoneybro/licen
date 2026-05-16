@@ -8,7 +8,7 @@ import {
   UploadCloud, Info, DollarSign,
   Repeat, Users, Clock, CalendarX, X, CheckCircle2, Lock,
   FileJson, LineChart, Palette, Cpu,
-  Copy, Check, ChevronLeft, Loader2
+  Copy, Check, ChevronLeft, Loader2, ExternalLink
 } from "lucide-react";
 import { encodeFunctionData, isAddress, type Address, type Hex } from "viem";
 import { AppTopbar } from "@/components/app/app-topbar";
@@ -180,6 +180,7 @@ export default function NewDatasetPage() {
   const [requestId, setRequestId] = useState<string | null>(null);
   const [status, setStatus] = useState<PublishStatusResponse["status"] | null>(null);
   const [sealedKeyData, setSealedKeyData] = useState<{ datasetRoot: string; encryptedKeyEnvelope: string } | null>(null);
+  const [publishedTxHash, setPublishedTxHash] = useState<string | null>(null);
   
   const [copied, setCopied] = useState(false);
 
@@ -220,6 +221,10 @@ export default function NewDatasetPage() {
         if (!active) return;
 
         setStatus(body.status);
+        if (body.txHash && body.txHash !== PENDING_TX_HASH) {
+          setPublishedTxHash(body.txHash);
+        }
+
         setPublishProgress(
           body.status === "queued" ? 80 : body.status === "validating" ? 92 : body.status === "accepted" ? 100 : 100
         );
@@ -227,13 +232,6 @@ export default function NewDatasetPage() {
         if (body.status === "accepted" || body.status === "failed") {
           setPublishingStep(body.status === "accepted" ? "Published successfully!" : "Publishing failed.");
           setPublishing(false);
-          
-          if (body.status === "accepted") {
-            // Give the user a moment to see the success state before redirecting
-            setTimeout(() => {
-              router.push("/app/datasets");
-            }, 2500);
-          }
           return;
         }
 
@@ -475,6 +473,7 @@ export default function NewDatasetPage() {
           },
         });
         txHash = result.hash;
+        setPublishedTxHash(txHash);
         
         // Update the backend with the real hash so it can track it properly later
         fetch("/api/publish/update-tx", {
@@ -920,6 +919,25 @@ export default function NewDatasetPage() {
                       </code>
                     </div>
                   </div>
+
+                  {publishedTxHash && (
+                    <div className="space-y-1.5">
+                      <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Transaction Hash</p>
+                      <Link 
+                        href={`https://chainscan-galileo.0g.ai/tx/${publishedTxHash}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex items-center gap-2 group hover:opacity-80 transition-opacity"
+                      >
+                        <code className="text-xs font-mono bg-background border px-2 py-1 rounded block truncate flex-1 text-primary">
+                          {publishedTxHash}
+                        </code>
+                        <div className="size-8 rounded-md border bg-background flex items-center justify-center shrink-0">
+                          <ExternalLink className="size-3 text-muted-foreground" />
+                        </div>
+                      </Link>
+                    </div>
+                  )}
                   
                   <div className="space-y-2">
                     <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">ECIES Key Envelope</p>
