@@ -14,7 +14,7 @@
 
 <br/>
 
-**LICEN lets owners publish encrypted datasets, define enforceable usage policies around how access is granted, and earn royalties whenever approved researchers use the data for AI model training.
+**LICEN lets owners publish encrypted datasets, define enforceable usage policies around how access is granted, and earn royalties whenever approved researchers use the data for AI model training.**
 
 ---
 
@@ -59,6 +59,7 @@ When the training finishes, the researcher receives their freshly trained AI mod
 
 <details>
 <summary><b>Click to view the Data Flow Diagram</b></summary>
+
 ```mermaid
 sequenceDiagram
     actor Owner as Dataset Owner
@@ -82,6 +83,7 @@ sequenceDiagram
     0G_Chain->>Owner: Royalty auto-paid
     0G_Compute->>Researcher: Delivers trained model
 ```
+
 </details>
 
 ---
