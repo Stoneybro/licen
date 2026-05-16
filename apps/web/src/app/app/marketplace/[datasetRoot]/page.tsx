@@ -247,10 +247,9 @@ export default function MarketplaceDetailPage() {
                       <HashChip hash={dataset.manifestHash} front={10} back={8} className="bg-muted/10" />
                    </div>
                    <div className="pt-2">
-                      <Button variant="outline" className="w-full text-xs h-9 bg-background font-semibold" asChild>
-                         <Link href={`/app/audit/dataset/${dataset.datasetRoot}`}>
-                            View Audit History
-                         </Link>
+                      <Button variant="outline" className="w-full text-xs h-9 bg-background font-semibold opacity-50 cursor-not-allowed" disabled>
+                        View Audit History
+                        <Badge variant="outline" className="ml-auto text-[8px] h-3.5 px-1 uppercase tracking-tighter opacity-70">Soon</Badge>
                       </Button>
                    </div>
                 </CardContent>

@@ -88,6 +88,23 @@ sequenceDiagram
 
 ---
 
+## 🔒 Security & Trust Model
+
+The most common question in a privacy-preserving marketplace is: *"How can a researcher trust the data if they can't see it before buying?"* 
+
+LICEN solves this through a three-layered trust model:
+
+### 1. The Policy Manifest (Indirect Verification)
+Researchers verify the data through a cryptographically signed **Policy Manifest**. This manifest is stored on 0G Storage and contains detailed metadata, technical summaries, and a **Merkle Root identity** of the dataset. This provides a "technical fingerprint" that proves the data hasn't been altered since it was published.
+
+### 2. Economic Protection (Escrow & Settlement)
+Trust is shifted from the person to the protocol. When a researcher starts a session, their funds are locked in the `DataPolicy` smart contract. **The publisher is not paid until the job is complete.** If the data is invalid or the compute node cannot access it, the researcher is automatically refunded by the contract.
+
+### 3. Hardware Enforcement (TEE Attestation)
+In the production roadmap, verification is handled by hardware. A **Trusted Execution Environment (TEE)** verifies that the specific dataset root requested by the researcher is exactly what is being used in the training container. Researchers receive a remote attestation quote as proof that the training occurred on the specific data they paid for.
+
+---
+
 ## 🌐 Why 0G?
 
 Every 0G component used in LICEN is **load-bearing**. We didn't just slap a logo on a Web2 app; this protocol is impossible without the 0G ecosystem.

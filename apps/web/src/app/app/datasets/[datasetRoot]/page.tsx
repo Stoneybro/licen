@@ -321,8 +321,9 @@ export default function DatasetDetailPage() {
                   <CardTitle className="text-sm font-semibold">Recent Training Activity</CardTitle>
                   <CardDescription className="text-xs">Real-time usage logs for this dataset.</CardDescription>
                 </div>
-                <Button asChild variant="outline" size="sm" className="h-8 text-xs font-semibold">
-                  <Link href={`/app/audit/dataset/${dataset.datasetRoot}`}>Full Audit Trail</Link>
+                <Button variant="outline" size="sm" className="h-8 text-xs font-semibold opacity-50 cursor-not-allowed" disabled>
+                  Full Audit Trail
+                  <Badge variant="outline" className="ml-2 text-[8px] h-3.5 px-1 uppercase tracking-tighter opacity-70">Soon</Badge>
                 </Button>
               </CardHeader>
               <CardContent className="p-0">

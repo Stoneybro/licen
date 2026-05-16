@@ -1,0 +1,67 @@
+---
+title: Trust & Verification Model
+description: How researchers verify data quality and integrity without compromising the owner's privacy.
+---
+
+# Trust & Verification Model
+
+In a privacy-preserving data marketplace, there is a fundamental tension between **Data Privacy** (the owner must not leak raw data) and **Buyer Confidence** (the researcher must know what they are buying).
+
+LICEN resolves this tension through a multi-layered trust model that shifts the burden of proof from "Trust the Person" to "Trust the Protocol."
+
+## The Core Challenge
+
+If a researcher can download a sample of the data to verify it, the owner has already lost control. If the researcher cannot see the data at all, they are buying a "black box." 
+
+LICEN bridges this gap using three distinct mechanisms:
+
+---
+
+## 1. The Policy Manifest (Indirect Verification)
+
+Before a dataset is published, the owner creates a **Public Policy Manifest**. This is a cryptographically signed JSON file stored on **0G Storage** that serves as the "Label" for the encrypted data.
+
+- **Technical Metadata:** Includes descriptions of schemas, row counts, and data distribution summaries.
+- **Allowed Purposes:** Defines the authorized research domains (e.g., "Biomedical Science" or "Climate Research").
+- **Merkle Root Identity:** The most critical part. The manifest includes the `datasetRoot` — a 32-byte Merkle root that represents the entire dataset. 
+
+Because this root is anchored in the `DataPolicy` smart contract on **0G Chain**, it provides a **permanent "Technical Fingerprint"**. A researcher can be certain that the encrypted blob they are paying to train on is the exact same one described in the manifest.
+
+---
+
+## 2. Economic Protection (Escrow & Settlement)
+
+LICEN uses an "Outcome-Based" economic model enforced by the `DataPolicy` smart contract.
+
+1. **Escrow Upfront:** The researcher locks their 0G tokens in the contract before training starts.
+2. **Conditional Payout:** The publisher **does not** receive the royalties immediately.
+3. **Verified Completion:** Royalties are only released when the training job reaches the `Completed` state on-chain, which requires a `resultHash` (the trained model) to be submitted.
+4. **Automatic Refunds:** If the training fails because the data is corrupted, or if the orchestrator cannot provide the key for the specific `datasetRoot` pledged, the researcher is automatically refunded by the smart contract.
+
+**The researcher isn't paying for data; they are paying for a successful training outcome on that data.**
+
+---
+
+## 3. Hardware Enforcement (TEE Attestation)
+
+In the production roadmap, LICEN moves from "Economic Trust" to "Hardware Trust" using **Trusted Execution Environments (TEEs)**.
+
+### The Attestation Flow
+1. A 0G-compatible compute node boots inside a CVM/TEE (like Intel TDX or AMD SEV-SNP).
+2. The node generates a **Remote Attestation Quote**. This quote is a hardware-signed proof that:
+   - The node is running genuine, unmodified LICEN training code.
+   - The node has loaded the specific `datasetRoot` requested by the researcher.
+3. The protocol verifies this quote before releasing the decryption key.
+
+### Verification for the Researcher
+Upon completion, the researcher receives a **Result Manifest** containing the `attestationRef`. They can verify this reference to be 100% certain that the training session used the exact data root they paid for, even though they never saw a single byte of the raw data.
+
+---
+
+## Summary of Guarantees
+
+| For the Data Owner | For the AI Researcher |
+|---|---|
+| My raw data is never exposed to the buyer. | I am 100% sure the training used the data I paid for. |
+| I am paid automatically via smart contract. | I only pay for successful training outcomes. |
+| My usage policies are enforced by hardware. | I can audit the entire training lifecycle on-chain. |

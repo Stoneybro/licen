@@ -3,6 +3,7 @@
   "pages": [
     "system-overview",
     "key-exchange",
-    "data-lifecycle"
+    "data-lifecycle",
+    "trust-model"
   ]
 }

@@ -26,6 +26,8 @@ import {
   SidebarMenuItem,
   SidebarSeparator,
 } from "@/components/ui/sidebar";
+import { Badge } from "@/components/ui/badge";
+import { cn } from "@/lib/utils";
 
 export function AppSidebar() {
   const pathname = usePathname();
@@ -133,11 +135,15 @@ export function AppSidebar() {
           <SidebarGroupContent>
             <SidebarMenu className="gap-1">
               <SidebarMenuItem>
-                <SidebarMenuButton asChild isActive={isActive("/app/audit")} tooltip="Audit Log" className={menuButtonClass}>
-                  <Link href="/app/audit">
-                    <ShieldCheckIcon />
-                    <span>Audit</span>
-                  </Link>
+                <SidebarMenuButton 
+                  isActive={isActive("/app/audit")} 
+                  tooltip="Audit Log (Coming Soon)" 
+                  className={cn(menuButtonClass, "opacity-50 cursor-not-allowed")}
+                  disabled
+                >
+                  <ShieldCheckIcon />
+                  <span>Audit</span>
+                  <Badge variant="outline" className="ml-auto text-[8px] h-3.5 px-1 uppercase tracking-tighter opacity-70">Soon</Badge>
                 </SidebarMenuButton>
               </SidebarMenuItem>
             </SidebarMenu>
