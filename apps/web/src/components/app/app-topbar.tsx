@@ -40,7 +40,11 @@ export function AppTopbar({ title }: { title?: string }) {
 
   React.useEffect(() => {
     refreshBalance();
-  }, [refreshBalance]);
+    if (!walletAddress) return;
+
+    const id = setInterval(refreshBalance, 10000);
+    return () => clearInterval(id);
+  }, [refreshBalance, walletAddress]);
 
   const handleCopyAddress = async () => {
     if (!walletAddress) {

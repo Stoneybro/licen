@@ -58,7 +58,7 @@ function getContractAddress() {
 // ---------------------------------------------------------------------------
 // Poll interval
 // ---------------------------------------------------------------------------
-const POLL_INTERVAL_MS = parseInt(process.env.OG_TASK_POLL_MS ?? "30000", 10);
+const POLL_INTERVAL_MS = parseInt(process.env.OG_TASK_POLL_MS ?? "3000", 10);
 // ---------------------------------------------------------------------------
 // Public API — called by dispatcher after submitting a 0G task
 // ---------------------------------------------------------------------------
@@ -95,12 +95,12 @@ async function pollActiveJobs() {
             if (process.env.LICEN_DEMO_MODE === "true" && job.providerAddress === "0xdemo") {
                 // ── Demo mode: simulate staged epoch progression ─────────────────────
                 // Each epoch takes MOCK_EPOCH_SECONDS. After all epochs, deliver + finish.
-                const MOCK_EPOCH_SECONDS = parseInt(process.env.MOCK_EPOCH_SECONDS ?? "25", 10);
+                const MOCK_EPOCH_SECONDS = parseInt(process.env.MOCK_EPOCH_SECONDS ?? "2", 10);
                 const dispatchedAt = job.mockDispatchedAt ? job.mockDispatchedAt.getTime() : job.createdAt.getTime();
                 const elapsedSeconds = (Date.now() - dispatchedAt) / 1000;
                 const totalTrainSeconds = job.requestedEpochs * MOCK_EPOCH_SECONDS;
-                const deliverAfter = totalTrainSeconds + 15; // 15s for "Delivering" phase
-                const finishAfter = deliverAfter + 20; // 20s after delivery = Finished
+                const deliverAfter = totalTrainSeconds + 3; // short delivery phase for demo pacing
+                const finishAfter = deliverAfter + 4; // short finalization phase for demo pacing
                 if (elapsedSeconds < totalTrainSeconds) {
                     // Training in progress — update epoch count on-chain via actualEpochs column
                     const completedEpochs = Math.min(Math.floor(elapsedSeconds / MOCK_EPOCH_SECONDS), job.requestedEpochs - 1 // don't mark all done until Delivered

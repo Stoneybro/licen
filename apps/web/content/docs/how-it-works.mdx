@@ -5,7 +5,7 @@ description: The end-to-end flow from dataset publish to royalty payout, explain
 
 # How It Works
 
-LICEN has two roles: **Dataset Owners** (publishers) and **AI Researchers** (buyers). Here's how the full lifecycle plays out — from first upload to final payout.
+LICEN has two roles: **Dataset Owners** (publishers) and **AI Researchers** (buyers). Here's how the full lifecycle plays out — from first upload to final payout across **0G Storage**, **0G Chain**, and a simulated **0G Compute** lifecycle. The production plan is to replace the simulation with a 0G-compatible confidential compute node that supports attestation-gated key release.
 
 ## The Flow at a Glance
 
@@ -31,12 +31,12 @@ anchors dataset on-chain ──────────────► (exact ep
      │    Orchestrator picks up the job
      │          │
      │          ▼
-     │    Unseals AES key (ECIES)
-     │    Downloads + decrypts dataset
-     │    Dispatches to 0G Compute (TEE)
+     │    Verifies access grant
+     │    Simulates 0G Compute dispatch today
+     │    Future: releases key only to attested TEE
      │          │
      │          ▼
-     │    Training runs inside secure enclave
+     │    Training lifecycle runs/simulates securely
      │          │
      │          ▼
      │    Attestation confirmed on-chain
@@ -83,7 +83,7 @@ They choose how many epochs they want to train for. The UI calculates the total 
 escrow = royaltyPerEpoch × requestedEpochs
 ```
 
-One transaction locks that amount in the **DataPolicy contract**. The contract validates the request against the policy (epoch limits, session TTL, allowed purposes) and emits an `AccessGranted` event.
+One transaction on **0G Chain** locks that amount in the **DataPolicy contract**. The contract validates the request against the policy (epoch limits, session TTL, allowed purposes) and emits an `AccessGranted` event.
 
 ---
 
@@ -91,24 +91,39 @@ One transaction locks that amount in the **DataPolicy contract**. The contract v
 
 The **Orchestrator** — LICEN's backend worker — is continuously polling the Envio indexer for `AccessGranted` events.
 
-When it picks up the job:
+In the current hackathon build, when it picks up the job:
 1. Verifies on-chain that the job state is `Granted` (not just relying on the indexer)
 2. Fetches the sealed key envelope for that `datasetRoot`
-3. **Decrypts the AES key** using its ECIES private key
-4. Downloads and decrypts the dataset from 0G Storage in memory
-5. Re-uploads the plaintext to 0G Storage for the compute provider
-6. Dispatches a fine-tuning task to **0G Compute** via the TEE provider network
+3. Coordinates the demo-mode compute lifecycle
+4. Tracks simulated fine-tuning progress
+5. Produces a result reference for the UI and settlement flow
+6. Mirrors the 0G Compute task states researchers would expect
 7. Calls `startJob()` on-chain — state moves to `Running`
 
-The AES key is **zeroed from memory** immediately after dispatch.
+This demonstrates the product flow while avoiding a false claim that today's public 0G fine-tuning interface supports encrypted dataset key injection.
+
+### Production Compute Plan
+
+The production architecture is a **0G-compatible confidential compute node**:
+
+1. The node boots a training container inside a TEE/CVM.
+2. The node generates a remote attestation quote and an ephemeral public key inside the TEE.
+3. LICEN verifies the quote against approved hardware, image hash, and training code hash.
+4. Only then is the dataset AES key released, encrypted to that TEE public key.
+5. The node downloads the encrypted dataset from 0G Storage and decrypts it only inside the TEE.
+6. Training runs inside the attested runtime.
+7. The node encrypts the model output, uploads it to 0G Storage, and signs a result manifest.
+8. The contract settles royalties using the result hash and attestation reference.
+
+This is the path that makes the stronger privacy guarantee defensible: the raw dataset is not handed to the researcher, the web app, or a normal orchestrator process.
 
 ---
 
 ## Step 4: Training & Settlement
 
-The 0G Compute provider trains the model inside a **Trusted Execution Environment (TEE)**. When training completes:
-- The LoRA adapter is uploaded to 0G Storage
-- A `resultHash` and `attestationRef` (the 0G Compute task UUID) are stored on-chain
+In the current demo, LICEN simulates the training lifecycle and completion signals. In production, the 0G-compatible confidential provider trains inside a measured TEE. When training completes:
+- The LoRA adapter is uploaded to **0G Storage**
+- A `resultHash` and `attestationRef` are stored on-chain
 
 The Orchestrator calls `confirmTrainingComplete()`. The DataPolicy contract releases:
 - **Royalty to the dataset owner** — exactly `actualEpochs × royaltyPerEpoch`
@@ -122,8 +137,9 @@ The researcher can now download their fine-tuned model from 0G Storage.
 
 | What is enforced | How |
 |---|---|
-| Dataset stays encrypted until payment confirms | AES key is only unsealed after on-chain `Granted` state is verified |
+| Dataset stays encrypted until payment confirms | AES key is only eligible for release after on-chain `Granted` state is verified |
 | Researcher can't exceed policy limits | DataPolicy contract rejects transactions that violate epoch/run/TTL caps |
 | Royalties are automatic | Settlement is a contract state transition — no invoicing, no trust |
-| Training is verifiable | 0G Compute task UUID stored as `attestationRef` on-chain |
-| No data leakage to LICEN | ECIES means even our web server can't read the AES key |
+| Training is verifiable | Demo task UUID stored as `attestationRef` today; production upgrade stores a TEE attestation reference |
+| No data leakage to LICEN web backend | ECIES means the web server cannot read the AES key |
+| Production confidential input handling | Planned 0G-compatible node releases dataset keys only after TEE attestation |

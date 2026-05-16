@@ -1,13 +1,13 @@
 ---
 title: Key Exchange Protocol
-description: How LICEN moves a dataset encryption key from a publisher's browser to the Orchestrator — without any server ever seeing it in plaintext.
+description: How LICEN seals dataset keys today and how production key release moves to an attested 0G-compatible compute node.
 ---
 
 # Key Exchange Protocol
 
-This is the most security-critical part of LICEN. The question it answers: **how does the Orchestrator get the dataset's AES decryption key without LICEN's own servers ever holding it?**
+This is the most security-critical part of LICEN. The current demo seals a dataset AES key for the Orchestrator so the app can simulate the compute lifecycle after an on-chain access grant. The production design changes the recipient: the key should be released only to an attested 0G-compatible compute node.
 
-The answer is ECIES envelope encryption — a pattern where the key is encrypted *for a specific recipient* (the Orchestrator) before it ever leaves the publisher's browser.
+The underlying pattern is envelope encryption — the dataset key is encrypted for a specific recipient before it leaves the publisher's browser.
 
 ---
 
@@ -39,7 +39,7 @@ The web app's database only ever holds the **sealed envelope** — the AES key e
 
 ---
 
-## Phase 2: Access (Orchestrator)
+## Phase 2: Access (Current Demo)
 
 When a researcher pays escrow and the `AccessGranted` event fires:
 
@@ -63,7 +63,34 @@ Decrypts dataset in memory (AES-256-GCM)
          └─► Zeros AES key bytes from memory (finally block)
 ```
 
-The AES key exists in plaintext for **seconds** — only in the Orchestrator's memory, only after on-chain payment confirmation.
+This is acceptable for demonstrating policy enforcement and settlement, but it is not the final confidential-input architecture.
+
+---
+
+## Phase 2: Access (Production Target)
+
+In production, the envelope/key-release target changes from the Orchestrator to a 0G-compatible confidential compute node:
+
+```
+Provider TEE boots approved training container
+         │
+         ▼
+TEE generates attestation quote + ephemeral public key
+         │
+         ▼
+LICEN verifies hardware, image hash, code hash, and policy
+         │
+         ▼
+AES key released encrypted to TEE public key
+         │
+         ▼
+TEE downloads encrypted dataset from 0G Storage
+         │
+         ▼
+TEE decrypts, trains, wipes plaintext, signs result manifest
+```
+
+The AES key becomes usable only inside the measured training runtime. The Orchestrator coordinates the job but does not receive plaintext dataset bytes.
 
 ---
 
@@ -74,7 +101,8 @@ The AES key exists in plaintext for **seconds** — only in the Orchestrator's m
 | Web app cannot decrypt datasets | App DB holds only the sealed envelope, not the private key |
 | Researchers cannot access raw data | The AES key is never exposed in the browser or API responses |
 | Database breach doesn't leak data | Sealed envelope is useless without the Orchestrator's private key |
-| Key exposure window is minimal | AES key is in memory for seconds, then zeroed |
+| Demo key exposure window is minimal | AES key is in memory for seconds, then zeroed |
+| Production key release is attested | AES key is encrypted to an ephemeral public key generated inside the compute TEE |
 | Payment is required before key use | Orchestrator checks on-chain state before any decryption — not just Envio events |
 
 ---
@@ -91,6 +119,6 @@ The upgrade path to decentralise key custody is straightforward because the enve
 |---|---|---|
 | **MVP (current)** | Orchestrator ECIES key | Centralised trusted operator |
 | **Hardening** | Shamir Secret Sharing (3-of-5 nodes) | Partial — requires collusion |
-| **Production** | Lit Protocol (Chipotle) or Threshold Network TACo | Fully decentralised TEE network |
+| **Production** | 0G-compatible confidential compute node + attestation-gated release | Dataset key usable only inside approved training TEE |
 
 Upgrading requires no changes to the DataPolicy contract, the publish flow, or the frontend — only the Orchestrator's `keyExchange.ts` module changes.

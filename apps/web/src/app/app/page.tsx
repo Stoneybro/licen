@@ -20,43 +20,53 @@ export default function PublisherDashboard() {
   const [activeJobsOnMyDatasets, setActiveJobsOnMyDatasets] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    async function fetchDashboardData() {
-      if (!walletAddress) return;
-      try {
-        const res = await fetch("/api/app/dataset-summaries", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ownerAddress: walletAddress, includeJobStats: true }),
-        });
-        const json = await res.json();
-        const datasets = (json.datasets ?? []).map((d: any) => ({
-          datasetRoot: d.datasetRoot,
-          active: d.active,
-          label: d.title,
-          royaltyPerEpoch: d.policy?.royaltyPerEpoch ?? 0,
-          lifetimeRoyalties: formatEther(BigInt(d.stats?.lifetimeRoyalties ?? 0)),
-          jobCount: d.stats?.jobCount ?? 0,
-          activeJobCount: d.stats?.activeJobCount ?? 0,
-        }));
-
-        setMyDatasets(datasets);
-        setActiveJobsOnMyDatasets(
-          datasets.filter((d: any) => d.activeJobCount > 0)
-        );
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+  const fetchDashboardData = React.useCallback(async (silent = false) => {
+    if (!walletAddress) {
+      setLoading(false);
+      return;
     }
+    if (!silent) setLoading(true);
+    try {
+      const res = await fetch("/api/app/dataset-summaries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerAddress: walletAddress, includeJobStats: true }),
+      });
+      const json = await res.json();
+      const datasets = (json.datasets ?? []).map((d: any) => ({
+        datasetRoot: d.datasetRoot,
+        active: d.active,
+        label: d.title,
+        royaltyPerEpoch: d.policy?.royaltyPerEpoch ?? 0,
+        lifetimeRoyalties: formatEther(BigInt(d.stats?.lifetimeRoyalties ?? 0)),
+        jobCount: d.stats?.jobCount ?? 0,
+        activeJobCount: d.stats?.activeJobCount ?? 0,
+      }));
 
+      setMyDatasets(datasets);
+      setActiveJobsOnMyDatasets(
+        datasets.filter((d: any) => d.activeJobCount > 0)
+      );
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [walletAddress]);
+
+  React.useEffect(() => {
     if (walletAddress) {
       fetchDashboardData();
     } else {
       setLoading(false);
     }
-  }, [walletAddress]);
+  }, [fetchDashboardData, walletAddress]);
+
+  React.useEffect(() => {
+    if (!walletAddress) return;
+    const id = setInterval(() => fetchDashboardData(true), 10000);
+    return () => clearInterval(id);
+  }, [fetchDashboardData, walletAddress]);
 
   if (loading) {
     return (

@@ -5,7 +5,9 @@ description: The backend worker that manages key unsealing, dataset decryption, 
 
 # The Orchestrator
 
-The Orchestrator (`packages/orchestrator`) is the most security-sensitive component in the LICEN stack. It is the **only** service that holds the ECIES private key and ever sees plaintext dataset bytes.
+The Orchestrator (`packages/orchestrator`) is the most security-sensitive component in the current demo stack. It coordinates access grants, key envelopes, simulated 0G Compute dispatch, job tracking, and settlement.
+
+The long-term production goal is different: the Orchestrator should become a coordinator, not a decryption point. Dataset keys should be released only to a 0G-compatible confidential compute node after that node presents valid TEE attestation.
 
 It runs as a **long-running Node.js process** — not a serverless function. This is intentional: the Orchestrator maintains persistent database connections and an in-memory job tracker.
 
@@ -14,17 +16,17 @@ It runs as a **long-running Node.js process** — not a serverless function. Thi
 ## Core Responsibilities
 
 1. **Polling** — queries Envio HyperIndex every 5 seconds for new `Granted` jobs
-2. **Key unsealing** — decrypts ECIES envelopes using the Orchestrator's private key
-3. **Data transformation** — downloads encrypted dataset from 0G Storage, decrypts in memory
-4. **Compute dispatch** — sends fine-tuning tasks to 0G Compute via `@0gfoundation/0g-compute-ts-sdk`
+2. **Key envelope coordination** — fetches sealed envelopes and enforces that key handling only happens after on-chain grant verification
+3. **Demo compute simulation** — mirrors the 0G Compute lifecycle used by the product UI and contracts
+4. **Future compute dispatch** — target integration with a 0G-compatible confidential provider node
 5. **Job tracking** — polls 0G task status and drives on-chain lifecycle forward
 6. **Settlement** — calls `confirmTrainingComplete()` or `markJobFailed()` based on 0G task outcome
 
 ---
 
-## The Dispatch Pipeline
+## Current Demo Dispatch Pipeline
 
-When a `Granted` job is found, `dispatcher.ts` executes this sequence:
+When a `Granted` job is found, `dispatcher.ts` executes one of two branches. In demo mode, storage/decryption/real compute are skipped and the job tracker simulates the 0G Compute lifecycle. The legacy non-demo branch is documented below because it explains why the production architecture must move to attestation-gated key release:
 
 ```
 1. Verify on-chain state = Granted (DataPolicy.jobs(jobId).state)
@@ -55,11 +57,60 @@ When a `Granted` job is found, `dispatcher.ts` executes this sequence:
 
 If **any** step from 1–9 fails: `markJobFailed(jobId, reason)` is called automatically. The researcher is refunded.
 
+This legacy pipeline is intentionally not the final privacy architecture. The hackathon demo uses simulation for the compute leg, while this branch documents the integration gap: today's public fine-tuning interface does not provide encrypted dataset key release into the provider TEE.
+
+---
+
+## Planned 0G-Compatible Confidential Compute Pipeline
+
+The production target is a provider node compatible with the 0G Compute experience but extended with encrypted dataset input and attestation-gated key release.
+
+```
+1. Verify on-chain state = Granted
+   ↓
+2. Select a LICEN/0G-compatible confidential provider
+   ↓
+3. Provider boots training container inside TEE/CVM
+   ↓
+4. Provider generates:
+   - remote attestation quote
+   - ephemeral public key generated inside the TEE
+   - container image hash
+   - training code hash
+   ↓
+5. LICEN verifies the quote and release policy
+   ↓
+6. Dataset AES key is encrypted to the TEE ephemeral public key
+   ↓
+7. Provider TEE downloads encrypted dataset from 0G Storage
+   ↓
+8. Provider TEE decrypts dataset internally and runs fine-tuning
+   ↓
+9. Provider TEE encrypts model artifact and uploads it to 0G Storage
+   ↓
+10. Provider signs result manifest:
+    datasetRoot, resultHash, codeHash, attestationRef, actualEpochs
+   ↓
+11. DataPolicy.confirmTrainingComplete() settles royalties
+```
+
+In this model, neither the web server nor the Orchestrator receives plaintext dataset bytes. The dataset key becomes usable only by a measured training runtime inside the confidential provider node.
+
+### Why This Is Needed
+
+The public 0G fine-tuning flow currently accepts a dataset path or dataset root hash. That is not enough for LICEN's strongest privacy claim because a normal dataset root hash implies the compute provider can retrieve the training file directly. LICEN needs the provider runtime itself to understand encrypted datasets and to receive the key only after attestation.
+
+The planned node closes that gap while still building on 0G primitives:
+- 0G Storage for encrypted dataset and encrypted model artifact roots
+- 0G Chain for access policy, escrow, settlement, and audit references
+- 0G-compatible compute semantics for provider discovery, task lifecycle, and fine-tuning UX
+- TEE attestation and key release for confidential input handling
+
 ---
 
 ## Job Tracker
 
-`jobTracker.ts` runs a `setInterval` loop every `OG_TASK_POLL_MS` (default 30,000ms), polling 0G Compute task status for all active jobs.
+`jobTracker.ts` runs a `setInterval` loop every `OG_TASK_POLL_MS` (default 3,000ms in demo mode), polling task status for all active jobs.
 
 ### 0G Task Status → On-Chain Action
 

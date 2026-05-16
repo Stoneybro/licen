@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePrivy, useWallets } from "@privy-io/react-auth";
+import { usePrivy, useSendTransaction, useWallets } from "@privy-io/react-auth";
 import { 
   Plus, ShieldCheck, 
   BrainCircuit, GraduationCap, Building2, Dna, Leaf,
@@ -36,7 +36,7 @@ import {
   type PublishPolicyConfig,
 } from "@/lib/publish/contracts";
 import { encryptDatasetFile, sealKeyEnvelope } from "@/lib/publish/encryption";
-import { buildRegisterDatasetArgs, DATA_POLICY_ABI, getDataPolicyAddress } from "@/lib/publish/onchain";
+import { buildRegisterDatasetArgs, DATA_POLICY_ABI, getDataPolicyAddress, getOgChain } from "@/lib/publish/onchain";
 
 const OPTIONAL_MANIFEST_SECTIONS = [
   {
@@ -148,6 +148,7 @@ const SECTIONS = [
 export default function NewDatasetPage() {
   const { user } = usePrivy();
   const { wallets } = useWallets();
+  const { sendTransaction } = useSendTransaction();
   const walletAddress = user?.wallet?.address;
   const router = useRouter();
 
@@ -405,8 +406,6 @@ export default function NewDatasetPage() {
         throw new Error("Connected wallet session not found. Reconnect wallet and retry.");
       }
 
-      const ethereumProvider = await activeWallet.getEthereumProvider();
-
       const submitPayload: PublishSubmitRequest = {
         datasetRoot,
         manifestHash,
@@ -464,10 +463,18 @@ export default function NewDatasetPage() {
       
       let txHash: Hex = "0x";
       try {
-        txHash = (await ethereumProvider.request({
-          method: "eth_sendTransaction",
-          params: [{ from: normalizedOwnerAddress, to: getDataPolicyAddress(), data: calldata }],
-        })) as Hex;
+        const result = await sendTransaction({
+          from: normalizedOwnerAddress,
+          to: getDataPolicyAddress(),
+          data: calldata,
+          chainId: getOgChain().id,
+        }, {
+          address: normalizedOwnerAddress,
+          uiOptions: {
+            showWalletUIs: false,
+          },
+        });
+        txHash = result.hash;
         
         // Update the backend with the real hash so it can track it properly later
         fetch("/api/publish/update-tx", {

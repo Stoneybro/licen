@@ -117,6 +117,12 @@ export default function ResearcherDashboard() {
     fetchAndHydrate();
   }, [fetchAndHydrate]);
 
+  React.useEffect(() => {
+    if (!walletAddress) return;
+    const id = setInterval(() => fetchAndHydrate(true), 10000);
+    return () => clearInterval(id);
+  }, [fetchAndHydrate, walletAddress]);
+
   const activeJobs = jobs.filter((j) =>
     ["Requested", "Granted", "Running"].includes(j.state)
   );

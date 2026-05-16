@@ -59,15 +59,15 @@ The `DataPolicy` contract is the financial arbiter of the entire protocol:
 
 ---
 
-## 0G Compute — Verifiable Training
+## 0G Compute — Target Verifiable Training Layer
 
 **The problem with generic compute:** If a researcher pays for 100 epochs of training and the compute provider reports "done," there's no way to verify that 100 epochs actually ran — or that the model wasn't cached from a previous job.
 
-**What 0G Compute gives us:** Fine-tuning jobs run inside **Trusted Execution Environments (TEE)** — hardware-isolated sandboxes (Intel TDX / AMD SEV-SNP architecture) that produce cryptographic proof that the specified computation occurred.
+**What 0G Compute gives us:** a target model for provider-based fine-tuning, task lifecycle tracking, provider availability, result delivery, and settlement semantics in the 0G ecosystem.
 
-The Orchestrator stores the 0G Compute task UUID as an `attestationRef` on-chain. This is the reference for future TEE quote verification — on-chain proof that the hardware actually ran the job.
+The current hackathon build simulates this 0G Compute lifecycle because the public fine-tuning interface does not yet expose the encrypted dataset/key-release API LICEN needs. We store the simulated task UUID as an `attestationRef` on-chain. The production upgrade is a 0G-compatible confidential provider node that emits a real TEE quote and supports encrypted dataset input.
 
-Settlement in LICEN is based on `actualEpochs` (what the TEE ran) vs. `requestedEpochs` (what the researcher paid for). Researchers only pay for real work. Publishers only get paid for verified training. No oracle required.
+Settlement in LICEN is based on `actualEpochs` vs. `requestedEpochs`. Researchers only pay for completed work. Publishers only get paid after the training lifecycle reaches completion. In production, this completion reference should be backed by a verified TEE attestation quote from the confidential provider node.
 
 ---
 
@@ -90,7 +90,7 @@ This means:
 |---|---|---|
 | **0G Storage** | Encrypted dataset storage, Merkle-root identity | Content-addressed roots are the only way to trustlessly link a contract to a file |
 | **0G Chain** | DataPolicy contract, escrow, settlement | Native to 0G ecosystem; cheap enough for per-epoch micro-payments |
-| **0G Compute** | TEE fine-tuning with attestation | Only decentralized compute network with TEE fine-tuning at this scale |
+| **0G Compute** | Target fine-tuning network and lifecycle model | LICEN simulates it today and plans a 0G-compatible confidential provider with TEE key release |
 | **Envio HyperIndex** | Event indexing for marketplace + Orchestrator | Real-time GraphQL over raw RPC = 10× faster marketplace |
 
 LICEN is not a Web2 app with a Web3 badge. The decentralization is **load-bearing**.

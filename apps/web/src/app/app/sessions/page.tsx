@@ -356,12 +356,12 @@ export default function SessionsPage() {
     fetchAndHydrate();
   }, [fetchAndHydrate]);
 
-  // Auto-poll every 8 seconds when there are active jobs
+  // Auto-poll every 10 seconds when there are active jobs
   React.useEffect(() => {
     const hasActive = jobs.some((j) => ACTIVE_STATES.includes(j.state));
     if (!hasActive) return;
 
-    const id = setInterval(() => fetchAndHydrate(true), 8000);
+    const id = setInterval(() => fetchAndHydrate(true), 10000);
     return () => clearInterval(id);
   }, [jobs, fetchAndHydrate]);
 

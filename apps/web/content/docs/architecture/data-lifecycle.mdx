@@ -5,7 +5,7 @@ description: The complete journey of a dataset — from a file on your computer 
 
 # Data Lifecycle
 
-Five phases. No single point of trust. Here's every step a dataset takes from upload to model delivery.
+Five phases. Here's every step a dataset takes from upload to model delivery in the current demo, plus the production upgrade path for confidential compute.
 
 ---
 
@@ -56,34 +56,43 @@ Five phases. No single point of trust. Here's every step a dataset takes from up
 
 **Actor:** Orchestrator (background Node.js process)
 
+The current hackathon build simulates the 0G Compute lifecycle. It proves access control, storage roots, escrow, job tracking, and settlement without claiming that today's public 0G fine-tuning API supports encrypted input key release.
+
 1. Orchestrator polls Envio every 5 seconds for `Granted` jobs
 2. For each new job:
    - Verifies on-chain state is `Granted` (contract is ground truth, not Envio)
    - Fetches sealed key envelope from Web App API (`/api/orchestrator/key-envelope?datasetRoot=...`)
-   - Decrypts envelope with ECIES private key → **AES key in memory**
-   - Downloads encrypted dataset from 0G Storage
-   - Decrypts blob in memory → plaintext JSONL
-   - Re-uploads plaintext to 0G Storage → `plaintextRootHash`
-   - Deletes temp file; zeros AES key bytes
-   - Calls `@0gfoundation/0g-compute-ts-sdk` → `createFineTuningTask(provider, model, plaintextRootHash, epochs)` → `taskId`
+   - Coordinates the simulated compute job lifecycle
+   - Tracks progress and actual epochs
+   - Produces a task/result reference for settlement
    - Saves `taskId` + `providerAddress` to `compute_jobs` DB table
    - Calls `startJob(jobId)` on DataPolicy contract → state moves to `Running`
 
-**State after phase:** Job is `Running`. AES key is gone from memory. Plaintext is temporarily on 0G Storage (required by current 0G Compute SDK). Training is dispatched.
+**State after phase:** Job is `Running`. The UI and contract now follow the same lifecycle a real 0G-compatible compute job would follow.
+
+### Production Upgrade: 0G-Compatible Confidential Node
+
+The planned production path replaces the simulated compute step with an attested provider node:
+
+1. Provider boots the training container inside a TEE/CVM.
+2. Provider produces a remote attestation quote and ephemeral public key generated inside the TEE.
+3. LICEN verifies the quote against approved hardware, image hash, and training code hash.
+4. Dataset AES key is released encrypted to the TEE public key only after successful verification.
+5. Provider downloads encrypted dataset from 0G Storage, decrypts it inside the TEE, trains, wipes plaintext, encrypts the model artifact, and uploads the result to 0G Storage.
+6. Provider signs a result manifest used by the contract and audit UI.
 
 ---
 
 ## Phase 5: Training & Settlement
 
-**Actor:** 0G Compute Provider + Orchestrator
+**Actor:** Simulated compute lifecycle today; 0G-compatible confidential provider in production
 
-1. GPU provider downloads plaintext dataset from 0G Storage
-2. Fine-tuning runs inside **TEE enclave** (hardware-isolated)
-3. LoRA adapter uploaded to 0G Storage by provider → `resultHash`
-4. Orchestrator's `jobTracker` polls task status every 30 seconds
+1. Training lifecycle progresses through running, delivered, and finished states
+2. LoRA adapter/result manifest is represented by a `resultHash`
+3. Orchestrator's `jobTracker` polls task status every few seconds in demo mode
 
 When status = `Delivered`:
-- Orchestrator calls `acknowledgeModel(taskId, provider)` — provider fee settlement
+- Orchestrator records result delivery
 
 When status = `Finished`:
 - Orchestrator calls `confirmTrainingComplete(jobId, actualEpochs, resultHash, attestationRef)`
@@ -105,10 +114,10 @@ If any step in Phase 4 or 5 fails:
 
 | Failure point | What happens |
 |---|---|
-| Key decryption error | Orchestrator calls `markJobFailed()` → researcher auto-refunded |
+| Key release/decryption error | Orchestrator calls `markJobFailed()` → researcher auto-refunded |
 | 0G Storage download error | Same — `markJobFailed()` + refund |
 | Compute dispatch error | Same — `markJobFailed()` + refund |
-| 0G Compute task `Failed` | `jobTracker` calls `markJobFailed()` + refund |
+| Compute task `Failed` | `jobTracker` calls `markJobFailed()` + refund |
 | Orchestrator crash/restart | `jobTracker` resumes all `running` jobs from DB on startup |
 
 The researcher is never stuck waiting — failed jobs always trigger a refund path.

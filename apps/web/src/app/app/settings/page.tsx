@@ -22,11 +22,17 @@ export default function SettingsPage() {
       chain: getOgChain(rpcUrl),
       transport: http(rpcUrl)
     });
-    client.getBalance({
-      address: walletAddress as `0x${string}`,
-    }).then(b => {
-      setBalance(Number(formatEther(b)).toFixed(4));
-    }).catch(console.error);
+    const refreshBalance = () => {
+      client.getBalance({
+        address: walletAddress as `0x${string}`,
+      }).then(b => {
+        setBalance(Number(formatEther(b)).toFixed(4));
+      }).catch(console.error);
+    };
+
+    refreshBalance();
+    const id = setInterval(refreshBalance, 10000);
+    return () => clearInterval(id);
   }, [walletAddress]);
 
   return (

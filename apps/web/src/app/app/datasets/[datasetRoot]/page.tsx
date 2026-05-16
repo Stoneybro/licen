@@ -38,10 +38,10 @@ export default function DatasetDetailPage() {
   const [jobs, setJobs] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    async function fetchData() {
-      if (!datasetRoot) return;
-      try {
+  const fetchData = React.useCallback(async (silent = false) => {
+    if (!datasetRoot) return;
+    if (!silent) setLoading(true);
+    try {
         // 1. Fetch Dataset & Jobs from Envio
         const query = `
           query GetDatasetAndJobs {
@@ -134,14 +134,22 @@ export default function DatasetDetailPage() {
           createdAt: new Date(Number(j.timestamp) * 1000).toISOString(),
         })));
 
-      } catch (err) {
-        console.error("Hydration failed", err);
-      } finally {
-        setLoading(false);
-      }
+    } catch (err) {
+      console.error("Hydration failed", err);
+    } finally {
+      setLoading(false);
     }
-    fetchData();
   }, [datasetRoot]);
+
+  React.useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  React.useEffect(() => {
+    if (!datasetRoot) return;
+    const id = setInterval(() => fetchData(true), 10000);
+    return () => clearInterval(id);
+  }, [datasetRoot, fetchData]);
 
   if (loading) {
     return (

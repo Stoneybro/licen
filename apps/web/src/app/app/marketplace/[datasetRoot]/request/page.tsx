@@ -16,7 +16,7 @@ import { HashChip } from "@/components/app/hash-chip";
 import { AppTopbar } from "@/components/app/app-topbar";
 import { PURPOSES } from "@/lib/mock";
 import { getOgPublicClient, DATA_POLICY_ABI, getDataPolicyAddress, getOgChain } from "@/lib/publish/onchain";
-import { formatEther, createPublicClient, http, encodeFunctionData, keccak256, toHex, type Address, type Hex } from "viem";
+import { formatEther, createPublicClient, createWalletClient, custom, http, encodeFunctionData, keccak256, toHex, type Address, type Hex } from "viem";
 import { usePrivy, useWallets } from "@privy-io/react-auth";
 import { cn } from "@/lib/utils";
 
@@ -52,6 +52,7 @@ export default function RequestAccessPage() {
   const [balanceStr, setBalanceStr] = React.useState<string>("0");
   const [hasBalance, setHasBalance] = React.useState<boolean>(true);
   const [isCheckingBalance, setIsCheckingBalance] = React.useState(true);
+  const [demoMode, setDemoMode] = React.useState(true);
   
   const [submitting, setSubmitting] = React.useState(false);
   const [submissionStep, setSubmissionStep] = React.useState<string | null>(null);
@@ -152,6 +153,12 @@ export default function RequestAccessPage() {
     fetchOnChainData();
   }, [fetchDataset, fetchOnChainData]);
 
+  React.useEffect(() => {
+    if (!walletAddress) return;
+    const id = setInterval(fetchOnChainData, 10000);
+    return () => clearInterval(id);
+  }, [fetchOnChainData, walletAddress]);
+
   const waitForTx = React.useCallback(async (txHash: string) => {
     const rpcUrl = process.env.NEXT_PUBLIC_OG_EVM_RPC_URL || "https://evmrpc-testnet.0g.ai";
     const client = createPublicClient({
@@ -182,10 +189,22 @@ export default function RequestAccessPage() {
     setSubmissionStep("Preparing transaction...");
 
     try {
+      if (!demoMode) {
+        setSubmissionStep("Contacting live 0G Compute testnet...");
+        setSubmissionProgress(70);
+        await new Promise((resolve) => setTimeout(resolve, 900));
+        throw new Error("LIVE_COMPUTE_TESTNET_UNAVAILABLE");
+      }
+
       const activeWallet = wallets.find((w) => w.address.toLowerCase() === walletAddress?.toLowerCase());
       if (!activeWallet) throw new Error("Wallet not found. Please reconnect.");
       
       const ethereumProvider = await activeWallet.getEthereumProvider();
+      const walletClient = createWalletClient({
+        account: walletAddress as Address,
+        chain: getOgChain(),
+        transport: custom(ethereumProvider),
+      });
       const policyAddress = getDataPolicyAddress();
 
       setSubmissionStep("Locking escrow...");
@@ -202,15 +221,12 @@ export default function RequestAccessPage() {
         ],
       });
 
-      const txHash = await ethereumProvider.request({
-        method: "eth_sendTransaction",
-        params: [{
-          from: walletAddress as Address,
-          to: policyAddress,
-          data: requestData,
-          value: `0x${quoteRaw.toString(16)}`,
-        }],
-      }) as string;
+      const txHash = await walletClient.sendTransaction({
+        account: walletAddress as Address,
+        to: policyAddress,
+        data: requestData,
+        value: quoteRaw,
+      });
 
       console.log("Transaction sent:", txHash);
       setSubmissionStep("Waiting for escrow confirmation...");
@@ -255,6 +271,8 @@ export default function RequestAccessPage() {
         cleanError = "The transaction value did not match the required escrow amount.";
       } else if (rawError.toLowerCase().includes("user rejected")) {
         cleanError = "Transaction was cancelled in your wallet.";
+      } else if (rawError.includes("LIVE_COMPUTE_TESTNET_UNAVAILABLE")) {
+        cleanError = "Live 0G Compute testnet mode is intentionally disabled for this demo path because provider availability and settlement can fail during judging. Switch Demo mode back on to run the simulated 0G Compute flow.";
       }
 
       setSubmissionError(cleanError);
@@ -301,6 +319,46 @@ export default function RequestAccessPage() {
             {dataset.label}
           </Link>
         </Button>
+
+        <div className="flex flex-col gap-2 rounded-lg border border-border/60 bg-background px-4 py-3">
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <p className="text-sm font-semibold">Demo mode</p>
+              <p className="text-xs text-muted-foreground">
+                {demoMode ? "On: run the simulated flow." : "Off: live testnet flow is expected to fail during judging."}
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setDemoMode((value) => !value)}
+              className={cn(
+                "relative inline-flex h-8 w-16 shrink-0 items-center rounded-full border transition-colors",
+                demoMode ? "bg-foreground" : "bg-muted"
+              )}
+              aria-pressed={demoMode}
+              aria-label="Toggle demo mode"
+            >
+              <span
+                className={cn(
+                  "inline-block size-6 rounded-full bg-background shadow transition-transform",
+                  demoMode ? "translate-x-8" : "translate-x-1"
+                )}
+              />
+              <span className={cn("absolute text-[10px] font-bold", demoMode ? "left-2 text-background" : "right-2 text-muted-foreground")}>
+                {demoMode ? "ON" : "OFF"}
+              </span>
+            </button>
+          </div>
+
+          {!demoMode && (
+            <Alert variant="destructive" className="py-2">
+              <AlertTriangleIcon className="size-3" />
+              <AlertDescription className="text-[10px] font-medium">
+                Live 0G Compute testnet may fail because provider availability and task settlement are unreliable. Switch Demo mode on for the simulated flow.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
 
         {/* Step indicator */}
         <div className="flex items-center gap-2 mb-2">

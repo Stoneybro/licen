@@ -19,49 +19,59 @@ export default function DatasetsPage() {
   const [myDatasets, setMyDatasets] = React.useState<any[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  React.useEffect(() => {
-    async function fetchMyDatasets() {
-      if (!walletAddress) return;
-      try {
-        const res = await fetch("/api/app/dataset-summaries", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ ownerAddress: walletAddress, includeJobStats: true }),
-        });
-        const json = await res.json();
-        const datasets = (json.datasets ?? []).map((d: any) => ({
-          datasetRoot: d.datasetRoot,
-          active: d.active,
-          label: d.title,
-          description: d.description,
-          royaltyPerEpoch: d.policy?.royaltyPerEpoch ?? 0,
-          maxEpochsPerRun: d.policy?.maxEpochsPerRun ?? 0,
-          maxRunsPerRequester: d.policy?.maxRunsPerRequester ?? 0,
-          openRequesters: d.policy?.openRequesters ?? false,
-          requireResultAttestation: false,
-          lifetimeRoyalties: formatEther(BigInt(d.stats?.lifetimeRoyalties ?? 0)),
-          jobCount: d.stats?.jobCount ?? 0,
-          activeJobCount: d.stats?.activeJobCount ?? 0,
-          policyExpiry:
-            d.policy?.policyExpiry && d.policy.policyExpiry > 0
-              ? new Date(Number(d.policy.policyExpiry) * 1000).toISOString()
-              : "2026-12-31T00:00:00Z",
-        }));
-
-        setMyDatasets(datasets);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
+  const fetchMyDatasets = React.useCallback(async (silent = false) => {
+    if (!walletAddress) {
+      setLoading(false);
+      return;
     }
+    if (!silent) setLoading(true);
+    try {
+      const res = await fetch("/api/app/dataset-summaries", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ownerAddress: walletAddress, includeJobStats: true }),
+      });
+      const json = await res.json();
+      const datasets = (json.datasets ?? []).map((d: any) => ({
+        datasetRoot: d.datasetRoot,
+        active: d.active,
+        label: d.title,
+        description: d.description,
+        royaltyPerEpoch: d.policy?.royaltyPerEpoch ?? 0,
+        maxEpochsPerRun: d.policy?.maxEpochsPerRun ?? 0,
+        maxRunsPerRequester: d.policy?.maxRunsPerRequester ?? 0,
+        openRequesters: d.policy?.openRequesters ?? false,
+        requireResultAttestation: false,
+        lifetimeRoyalties: formatEther(BigInt(d.stats?.lifetimeRoyalties ?? 0)),
+        jobCount: d.stats?.jobCount ?? 0,
+        activeJobCount: d.stats?.activeJobCount ?? 0,
+        policyExpiry:
+          d.policy?.policyExpiry && d.policy.policyExpiry > 0
+            ? new Date(Number(d.policy.policyExpiry) * 1000).toISOString()
+            : "2026-12-31T00:00:00Z",
+      }));
 
+      setMyDatasets(datasets);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [walletAddress]);
+
+  React.useEffect(() => {
     if (walletAddress) {
       fetchMyDatasets();
     } else {
       setLoading(false);
     }
-  }, [walletAddress]);
+  }, [fetchMyDatasets, walletAddress]);
+
+  React.useEffect(() => {
+    if (!walletAddress) return;
+    const id = setInterval(() => fetchMyDatasets(true), 10000);
+    return () => clearInterval(id);
+  }, [fetchMyDatasets, walletAddress]);
 
   if (loading) {
     return (

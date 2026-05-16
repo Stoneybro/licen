@@ -175,7 +175,7 @@ export default function JobDetailPage() {
 
     const interval = setInterval(() => {
       fetchAndHydrate(true);
-    }, 8000);
+    }, 10000);
 
     return () => clearInterval(interval);
   }, [job?.state, fetchAndHydrate]);

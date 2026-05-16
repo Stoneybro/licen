@@ -5,7 +5,11 @@ description: The five-service architecture that enforces LICEN's dataset licensi
 
 # System Overview
 
-LICEN is not a single application. It is five services that pass encrypted data and payment authorizations across trust boundaries — **without any single service having full access to everything**.
+LICEN is not a single application. It is five services that pass encrypted data and payment authorizations across trust boundaries.
+
+The current hackathon build uses **0G Storage** and **0G Chain** directly and **simulates the 0G Compute lifecycle**. This is intentional: the public 0G fine-tuning path accepts a local dataset file or a 0G Storage dataset root hash, but does not currently expose the encrypted-input/key-release capability LICEN needs to guarantee that a private dataset is decrypted only inside the training TEE.
+
+The production path is a **0G-compatible confidential compute node** that adds attestation-gated key release on top of the 0G-style fine-tuning lifecycle.
 
 ## The Five Services
 
@@ -35,8 +39,8 @@ LICEN is not a single application. It is five services that pass encrypted data 
                          │ Fine-tuning task
                          ▼
 ┌─────────────────────────────────────────────────────────┐
-│                    0G Compute (TEE)                       │
-│        (GPU providers · TEE enclave · LoRA training)      │
+│          0G-compatible Confidential Compute                │
+│  (Demo simulation today · Attested provider node planned) │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -65,7 +69,7 @@ Built with **Next.js** and deployed on Vercel.
 
 ## 2. The DataPolicy Contract
 
-`DataPolicy.sol` is the protocol's source of truth. Deployed on **0G Chain (Newton Testnet)**.
+`DataPolicy.sol` is the protocol's source of truth. Deployed on **0G Chain (Galileo Testnet)**.
 
 **Key state stored on-chain:**
 - `datasetRoot` (bytes32) — Merkle root of the encrypted dataset
@@ -101,29 +105,46 @@ This replaces raw RPC polling throughout the app. The Orchestrator queries Envio
 
 The Orchestrator (`packages/orchestrator`) is a long-running **Node.js process** — the most security-sensitive component in the stack.
 
-It is the **only** service that:
+In the current demo it is the service that:
 - Holds the ECIES private key
-- Ever sees plaintext dataset bytes (in memory, briefly)
+- Coordinates simulated 0G Compute dispatch and job state tracking
 - Calls settlement functions on the DataPolicy contract
 
 **Security invariant:** The Orchestrator verifies on-chain job state (`Granted`) before it performs any key operation — even if the Envio event looks valid. The contract is the ground truth.
+
+In production, this component should become a coordinator rather than a decryption point. Dataset keys should be released only after a 0G-compatible compute node presents a valid TEE attestation quote.
 
 See [The Orchestrator](/docs/developer-guide/orchestrator) for the full dispatch flow.
 
 ---
 
-## 5. 0G Compute (TEE)
+## 5. 0G Compute Status and the 0G-Compatible Confidential Node
 
-Fine-tuning jobs run on the 0G Compute provider network. Providers operate inside **Trusted Execution Environments** — hardware-isolated sandboxes that prevent the provider from seeing the model weights or training data after the job completes.
+The public 0G fine-tuning docs describe a provider flow where the user supplies a dataset path or 0G Storage dataset root hash, the provider downloads/verifies the dataset, trains the model, encrypts the output model, and publishes the encrypted result. That is useful for verifiable fine-tuning, but it is not enough for LICEN's strongest privacy goal: encrypted datasets whose decryption keys are released only inside the compute TEE.
 
-The Orchestrator dispatches via `@0gfoundation/0g-compute-ts-sdk`:
+For the hackathon build, LICEN simulates the 0G Compute lifecycle:
+
 ```typescript
-broker.fineTuning.createTask(provider, model, plaintextRootHash, config)
+createFineTuningTask({ datasetRootHash, requestedEpochs })
 ```
 
-The returned task UUID is stored as `attestationRef` on-chain — the reference for future hardware attestation verification.
+The simulated task UUID is stored as `attestationRef` on-chain. The UI and contract lifecycle still demonstrate dispatch, running state, result delivery, and settlement.
 
-Current model: `Qwen2.5-0.5B-Instruct`. Output: a LoRA adapter (~50–200MB).
+### Production Compute Target
+
+LICEN's planned production compute layer is a **0G-compatible confidential provider node**:
+
+1. The dataset owner encrypts the dataset locally and uploads ciphertext to 0G Storage.
+2. The researcher pays escrow and receives an on-chain access grant.
+3. A LICEN-compatible provider starts the training container inside a TEE/CVM.
+4. The node generates a remote attestation quote that includes the container image hash, training code hash, TEE hardware evidence, and an ephemeral public key generated inside the TEE.
+5. LICEN verifies the quote against an allowlist of approved worker images and release policies.
+6. The dataset AES key is encrypted to the TEE ephemeral public key and released only to that attested node.
+7. The node downloads ciphertext from 0G Storage, decrypts inside the TEE, runs fine-tuning, wipes plaintext, encrypts the model artifact, and uploads the result to 0G Storage.
+8. The node signs a result manifest containing the dataset root, model root, code hash, attestation reference, actual epochs, and result hash.
+9. The DataPolicy contract settles royalties using the signed completion reference.
+
+This keeps 0G as the storage, chain, settlement, and target compute ecosystem while adding the missing confidential-input capability required for sensitive datasets.
 
 ---
 
@@ -134,7 +155,8 @@ Current model: `Qwen2.5-0.5B-Instruct`. Output: a LoRA adapter (~50–200MB).
 | Web Application | Encrypted dataset, sealed key envelope | AES key, plaintext data |
 | DataPolicy Contract | Policy rules, job state, amounts | Encrypted content, keys |
 | Envio Indexer | On-chain events | Off-chain data of any kind |
-| Orchestrator | AES key (briefly), plaintext data (in memory) | Researcher identity beyond wallet |
-| 0G Compute | Plaintext data during training | AES key, encryption scheme |
+| Orchestrator | Demo job coordination, sealed envelopes, settlement authority | Web backend data, contract state beyond what is public |
+| 0G Compute simulation | Task lifecycle state | Real dataset plaintext |
+| Planned confidential provider | Plaintext data only inside TEE during training | Dataset key before attestation, owner/browser secrets |
 
-No single service has the full picture. This is by design.
+No single service should have the full picture in production. The key design upgrade is moving plaintext access from the Orchestrator into an attested, measured, 0G-compatible TEE node.
